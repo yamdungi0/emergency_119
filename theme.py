@@ -80,6 +80,26 @@ def logo_svg(width: int = 44, height: int = 34, on_dark: bool = True) -> str:
     return "".join(parts)
 
 
+KPI_ICON_GLYPHS = {
+    # 단순 도형(선/원/사각형)만 사용 — 정교한 아이콘 폰트 없이도 안정적으로 그려진다.
+    "list": '<line x1="7" y1="8" x2="17" y2="8"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="7" y1="16" x2="13" y2="16"/>',
+    "clock": '<circle cx="12" cy="12" r="7"/><line x1="12" y1="12" x2="12" y2="8"/><line x1="12" y1="12" x2="15" y2="13"/>',
+    "pie": '<circle cx="12" cy="12" r="7"/><path d="M12 12 L12 5 A7 7 0 0 1 18.5 15.5 Z" fill="#ffffff" stroke="none"/>',
+    "alert": '<path d="M12 5 L20 19 L4 19 Z"/><line x1="12" y1="10.5" x2="12" y2="14"/><circle cx="12" cy="16.5" r="0.6" fill="#ffffff" stroke="none"/>',
+}
+
+
+def kpi_icon_svg(kind: str, bg_color: str, size: int = 34) -> str:
+    glyph = KPI_ICON_GLYPHS.get(kind, KPI_ICON_GLYPHS["list"])
+    parts = [
+        f'<svg viewBox="0 0 24 24" width="{size}" height="{size}">',
+        f'<circle cx="12" cy="12" r="12" fill="{bg_color}"/>',
+        f'<g fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">{glyph}</g>',
+        "</svg>",
+    ]
+    return "".join(parts)
+
+
 def inject_css() -> None:
     import streamlit as st
 
@@ -153,6 +173,7 @@ def inject_css() -> None:
         div[data-testid="stVerticalBlockBorderWrapper"] > div {{
             gap: 0.5rem;
         }}
+        .kpi-header {{ display: flex; align-items: center; gap: 0.5rem; }}
         .kpi-label {{ color: {LABEL_NAVY}; font-size: 0.78rem; font-weight: 700; }}
         .kpi-value {{ font-size: 1.6rem; font-weight: 900; margin-top: 0.15rem; }}
         .kpi-delta {{ font-size: 0.78rem; margin-top: 0.2rem; }}

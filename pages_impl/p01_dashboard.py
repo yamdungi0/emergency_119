@@ -12,8 +12,10 @@ import theme
 DEMO_YEAR = 2026
 
 # 밝은 톤 — 유형 분포 도넛과 "유형 구성 1위" KPI가 같은 색을 공유한다.
+# 레드(RED)는 앱 전역에서 경보 전용 색이라 일반 유형 구분에는 쓰지 않고,
+# 대신 따뜻한 주황→차가운 청록·블루·바이올렛으로 대비를 준다.
 CAT_ORDER = ["약물과다", "약물중독", "약물오용", "약물부작용", "마약중독"]
-CAT_COLORS = ["#4C6FE7", "#2FB380", "#E8748F", "#8B6FE0", "#2FB6C4"]
+CAT_COLORS = ["#4C6FE7", "#F2994A", "#2FB6A5", "#8B6FE0", "#E8748F"]
 CAT_COLOR_MAP = dict(zip(CAT_ORDER, CAT_COLORS))
 
 
@@ -22,13 +24,18 @@ def _title(text: str) -> None:
 
 
 def _kpi(col, label: str, value: str, delta: str | None = None,
-         delta_color: str = theme.TEXT_SECONDARY, value_color: str | None = None) -> None:
+         delta_color: str = theme.TEXT_SECONDARY, value_color: str | None = None,
+         icon: str | None = None, icon_color: str = theme.NAVY) -> None:
     delta_html = f'<div class="kpi-delta" style="color:{delta_color}">{delta}</div>' if delta else ""
     value_style = f"color:{value_color};" if value_color else ""
+    icon_html = theme.kpi_icon_svg(icon, icon_color) if icon else ""
     col.markdown(
         f"""
         <div class="card">
-            <div class="kpi-label">{label}</div>
+            <div class="kpi-header">
+                {icon_html}
+                <div class="kpi-label">{label}</div>
+            </div>
             <div class="kpi-value" style="{value_style}">{value}</div>
             {delta_html}
         </div>
@@ -43,7 +50,6 @@ def render() -> None:
     kpi_col, main_col, side_col = st.columns([0.9, 2.1, 1.7], gap="small")
 
     panel = dl.load_2024_panel()
-    using_real_model = bool(panel["prediction_source"].iloc[0] == "lightgbm")
 
     with main_col:
         selected_date = st.date_input(
@@ -63,13 +69,6 @@ def render() -> None:
             format_func=lambda h: f"{h:02d}:00",
             key="dash_slot",
         )
-        if using_real_model:
-            st.caption("예측 = 학습된 LightGBM Poisson 모델 추론 (2019-2022 학습, 06 화면과 동일 모델)")
-        else:
-            st.caption(
-                "예측 = LightGBM 로드 실패로 근사치 표시 중 — "
-                "최근 7일 이동평균 + 동일 요일·시간대 평균 (개발 환경 한정, 배포 환경에서는 실제 모델 사용)"
-            )
         briefing_box = st.container(border=True)
 
     series = dl.national_day_series(month_day)
@@ -98,17 +97,20 @@ def render() -> None:
 
     with kpi_col:
         _kpi(st, "오늘 누적 약물 관련 신고 (00시~현재)", f"{actual_so_far}건",
-             f"모델 예측 대비 {delta_pct:+.0f}%", theme.STATUS["critical"] if delta_pct > 20 else theme.TEXT_SECONDARY)
+             f"모델 예측 대비 {delta_pct:+.0f}%", theme.STATUS["critical"] if delta_pct > 20 else theme.TEXT_SECONDARY,
+             icon="list", icon_color=theme.CATEGORICAL["blue"])
         _kpi(st, "향후 3시간 예상", f"{next_window_pred:.0f}건",
-             f"{next_start.strftime('%H:%M')}~{next_end.strftime('%H:%M')} 구간")
+             f"{next_start.strftime('%H:%M')}~{next_end.strftime('%H:%M')} 구간",
+             icon="clock", icon_color=theme.CATEGORICAL["aqua"])
         if top_type is not None:
             pct = top_type["count"] / mix["count"].sum() * 100
             top_color = CAT_COLOR_MAP.get(top_type["main_symptom"], theme.TEXT_PRIMARY)
             _kpi(st, "유형 구성 1위", f"{top_type['label']}", f"{pct:.0f}% ({int(top_type['count'])}건)",
-                 value_color=top_color)
+                 value_color=top_color, icon="pie", icon_color=theme.CATEGORICAL["magenta"])
         else:
-            _kpi(st, "유형 구성", "데이터 없음")
-        _kpi(st, "이상징후 발생지역", f"{len(alert_regions)}곳", "평시 대비 1.5배 이상")
+            _kpi(st, "유형 구성", "데이터 없음", icon="pie", icon_color=theme.CATEGORICAL["magenta"])
+        _kpi(st, "이상징후 발생지역", f"{len(alert_regions)}곳", "평시 대비 1.5배 이상",
+             icon="alert", icon_color=theme.STATUS["critical"])
 
         with st.container(border=True):
             _title("유형 분포")
@@ -190,23 +192,31 @@ def render() -> None:
     with side_col:
         with st.container(border=True):
             _title("시도별 실시간 위험도 지도")
-            # 더 쨍하고(채도 높은) 진한 남색 테두리가 도는 마커 — 기본 경보색보다
-            # 지도 위에서 또렷하게 보이도록 지도 전용 팔레트를 쓴다.
-            map_marker_color = {
-                "관심": "#2F6FEA", "주의": "#F5B300",
-                "경계": "#F2701C", "심각": "#E42B2B",
-            }
+            # 색상만으로 4단계(관심/주의/경계/심각)를 다 구분하면 채도 차이가 작아
+            # 가독성이 떨어졌다 — "0건(비활동)/신고 있음/이상징후" 3단계로 단순화해
+            # 색 대비를 뚜렷하게 준다. 관심·주의는 "신고 있음"으로, 경계·심각은
+            # "이상징후"로 묶고, 실제 누적이 0인 지역은 별도로 회색 처리한다.
+            MAP_TIER_COLOR = {"0건": "#757575", "신고 있음": "#FFBB29", "이상징후": "#FF3433"}
             NAVY_OUTLINE = "#12285A"
             map_df = snapshot.copy()
             map_df["lat"] = map_df["region"].map(lambda r: dl.REGION_COORDS[r][0])
             map_df["lon"] = map_df["region"].map(lambda r: dl.REGION_COORDS[r][1])
             geojson = dl.load_province_geojson()
 
+            def _map_tier(row):
+                if row["actual_so_far"] == 0:
+                    return "0건"
+                if row["risk"] in ("경계", "심각"):
+                    return "이상징후"
+                return "신고 있음"
+
+            map_df["map_tier"] = map_df.apply(_map_tier, axis=1)
+
             # 점 마커 대신 시도 영역 자체를 위험도 색으로 채운다(코로플레스) — 지역별
             # 경계가 실제 면적으로 보여 한눈에 들어오도록. 시도명 텍스트는 그 위에 겹쳐 표시.
             fig_map = go.Figure()
-            for risk_level in ["관심", "주의", "경계", "심각"]:
-                level_df = map_df[map_df["risk"] == risk_level]
+            for tier in ["0건", "신고 있음", "이상징후"]:
+                level_df = map_df[map_df["map_tier"] == tier]
                 if level_df.empty:
                     continue
                 fig_map.add_trace(go.Choroplethmapbox(
@@ -214,13 +224,16 @@ def render() -> None:
                     featureidkey="properties.name",
                     locations=level_df["region"],
                     z=[1] * len(level_df),
-                    colorscale=[[0, map_marker_color[risk_level]], [1, map_marker_color[risk_level]]],
+                    colorscale=[[0, MAP_TIER_COLOR[tier]], [1, MAP_TIER_COLOR[tier]]],
                     showscale=False,
-                    marker=dict(opacity=0.82, line=dict(color=NAVY_OUTLINE, width=1)),
-                    name=risk_level,
+                    marker=dict(opacity=0.85, line=dict(color=NAVY_OUTLINE, width=1)),
+                    name=tier,
                     text=[
-                        f"{r}<br>실제 누적 {c}건<br>평시 대비 {ratio:.1f}배<br>위험도 {risk_level}"
-                        for r, c, ratio in zip(level_df["region_short"], level_df["actual_so_far"], level_df["ratio_vs_baseline"])
+                        f"{r}<br>실제 누적 {c}건<br>평시 대비 {ratio:.1f}배<br>위험도 {risk}"
+                        for r, c, ratio, risk in zip(
+                            level_df["region_short"], level_df["actual_so_far"],
+                            level_df["ratio_vs_baseline"], level_df["risk"],
+                        )
                     ],
                     hoverinfo="text",
                 ))
