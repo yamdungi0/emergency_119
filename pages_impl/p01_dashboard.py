@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 
+import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
@@ -62,8 +63,21 @@ def render() -> None:
     snapshot["risk"] = snapshot["ratio_vs_baseline"].map(dl.risk_level)
     mix = dl.category_mix(month_day, up_to_slot)
 
+    # 기획서 정의: "향후 3시간 예상"은 자정까지 남은 슬롯 전체 합이 아니라,
+    # 지금 시점 바로 다음 3시간 슬롯 하나의 예측치다 (예: "오늘 20~24시 예상 17건").
+    # 표시 날짜는 2026년으로 보이지만 실데이터는 2024년 패널에 있으므로,
+    # 월-일·시각만으로 매칭한다 (연도는 비교하지 않음).
+    next_start = pd.Timestamp(selected_date) + pd.Timedelta(hours=int(up_to_slot) + 3)
+    next_end = next_start + pd.Timedelta(hours=3)
+    panel = dl.load_2024_panel()
+    next_window_pred = float(
+        panel.loc[
+            (panel["month_day"] == next_start.strftime("%m-%d")) & (panel["slot"] == next_start.hour),
+            "prediction",
+        ].sum()
+    )
+
     actual_so_far = int(snapshot["actual_so_far"].sum())
-    predicted_remaining = round(float(snapshot["predicted_remaining"].sum()), 1)
     predicted_so_far = round(float(snapshot["predicted_so_far"].sum()), 1)
     delta_pct = ((actual_so_far - predicted_so_far) / predicted_so_far * 100) if predicted_so_far > 0 else 0.0
     top_type = mix.sort_values("count", ascending=False).iloc[0] if not mix.empty else None
@@ -72,7 +86,8 @@ def render() -> None:
     k1, k2, k3, k4 = st.columns(4)
     _kpi(k1, "오늘 누적 약물 관련 신고 (00시~현재)", f"{actual_so_far}건",
          f"모델 예측 대비 {delta_pct:+.0f}%", theme.STATUS["critical"] if delta_pct > 20 else theme.TEXT_SECONDARY)
-    _kpi(k2, f"향후 {24 - up_to_slot}시간 예상", f"{predicted_remaining:.0f}건", "잔여 슬롯 예측 합")
+    _kpi(k2, "향후 3시간 예상", f"{next_window_pred:.0f}건",
+         f"{next_start.strftime('%H:%M')}~{next_end.strftime('%H:%M')} 구간")
     if top_type is not None:
         pct = top_type["count"] / mix["count"].sum() * 100
         _kpi(k3, "유형 구성 1위", f"{top_type['label']}", f"{pct:.0f}% ({int(top_type['count'])}건)")
