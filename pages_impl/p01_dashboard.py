@@ -129,26 +129,37 @@ def render() -> None:
     with chart_box:
         _title("시간대별 신고량 — 실제 대 예측 (전국 합계)")
         fig = go.Figure()
-        # 예측선은 하루 전체(00~24시)를 계속 보여준다 — 각 슬롯의 예측값 자체가
-        # 그 시점까지 누적된 데이터로 3시간마다 갱신되어 계산된 것이므로,
-        # 선을 자르지 않아도 "3시간마다 달라지는 예측"이 곡선 모양에 이미 반영돼 있다.
-        fig.add_trace(go.Scatter(
-            x=[f"{h:02d}시" for h in dl.SLOTS], y=series["prediction"],
-            name="예측", mode="lines+markers",
-            line=dict(color=theme.CATEGORICAL["blue"], dash="dash", width=2),
-            marker=dict(size=6),
-        ))
+        slot_labels = [f"{h:02d}시" for h in dl.SLOTS]
+
         actual_masked = series["actual"].where(series["slot"] <= up_to_slot)
         fig.add_trace(go.Scatter(
-            x=[f"{h:02d}시" for h in dl.SLOTS], y=actual_masked,
+            x=slot_labels, y=actual_masked,
             name="실제", mode="lines+markers",
             line=dict(color=theme.STATUS["critical"], width=2.5),
             marker=dict(size=7),
         ))
+
+        # 원 모델은 "지금부터 향후 3시간"만 내다보는 롤링 예측기이므로, 하루치 예측을
+        # 한번에 미리 보여줄 수 없다 — 실제선 끝(지금)에서 향후 3시간 뒤 한 점까지만
+        # 잇는다. 끝점 값은 KPI 카드의 "향후 3시간 예상"과 동일한 next_window_pred.
+        now_actual = float(series.loc[series["slot"] == up_to_slot, "actual"].iloc[0])
+        now_label = f"{up_to_slot:02d}시"
+        next_label = f"{next_start.hour:02d}시" + ("(익일)" if next_start.date() != selected_date else "")
+        if next_label not in slot_labels:
+            slot_labels = slot_labels + [next_label]
+        fig.add_trace(go.Scatter(
+            x=[now_label, next_label], y=[now_actual, next_window_pred],
+            name="예측 (향후 3시간)", mode="lines+markers",
+            line=dict(color=theme.CATEGORICAL["blue"], dash="dash", width=2),
+            marker=dict(size=6),
+        ))
+
         fig.add_vline(x=dl.SLOTS.index(up_to_slot), line_width=1, line_dash="dot",
                        line_color=theme.TEXT_MUTED, annotation_text=f"현재 {up_to_slot:02d}:00",
                        annotation_font_color=theme.TEXT_SECONDARY)
-        fig.update_layout(**theme.plotly_layout_defaults(), height=320)
+        layout_defaults = theme.plotly_layout_defaults()
+        layout_defaults["xaxis"] = {**layout_defaults["xaxis"], "categoryorder": "array", "categoryarray": slot_labels}
+        fig.update_layout(**layout_defaults, height=320)
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
     with briefing_box:
