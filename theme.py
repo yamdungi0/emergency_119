@@ -180,13 +180,14 @@ def inject_css() -> None:
             position: relative;
         }}
         div[data-testid="stDateInput"] div[data-baseweb="base-input"]::after {{
-            content: "📅";
+            content: "▾";
             position: absolute;
-            right: 12px;
+            right: 14px;
             top: 50%;
             transform: translateY(-50%);
             pointer-events: none;
-            font-size: 15px;
+            font-size: 13px;
+            color: {TEXT_SECONDARY};
         }}
         input[data-testid="stDateInputField"] {{
             padding-right: 2.4rem !important;

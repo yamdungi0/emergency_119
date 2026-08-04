@@ -101,16 +101,20 @@ def render() -> None:
         with st.container(border=True):
             st.markdown("**시간대별 신고량 — 실제 대 예측 (전국 합계)**")
             fig = go.Figure()
+            # "지금"을 기준으로 왼쪽=실제(지나간 시간), 오른쪽=예측(향후)만 표시한다.
+            # 슬라이더를 움직이면 이 경계가 함께 움직여야, 예측이 "지금 시점부터 향후"라는
+            # 기획서 정의가 그래프에서도 눈에 보인다.
+            prediction_masked = series["prediction"].where(series["slot"] >= up_to_slot)
             fig.add_trace(go.Scatter(
-                x=[f"{h:02d}시" for h in dl.SLOTS], y=series["prediction"],
-                name="예측", mode="lines+markers",
+                x=[f"{h:02d}시" for h in dl.SLOTS], y=prediction_masked,
+                name="예측 (지금 이후)", mode="lines+markers",
                 line=dict(color=theme.CATEGORICAL["blue"], dash="dash", width=2),
                 marker=dict(size=6),
             ))
             actual_masked = series["actual"].where(series["slot"] <= up_to_slot)
             fig.add_trace(go.Scatter(
                 x=[f"{h:02d}시" for h in dl.SLOTS], y=actual_masked,
-                name="실제", mode="lines+markers",
+                name="실제 (지금까지)", mode="lines+markers",
                 line=dict(color=theme.STATUS["critical"], width=2.5),
                 marker=dict(size=7),
             ))
