@@ -17,6 +17,10 @@ CAT_COLORS = ["#4C6FE7", "#2FB380", "#E8748F", "#8B6FE0", "#2FB6C4"]
 CAT_COLOR_MAP = dict(zip(CAT_ORDER, CAT_COLORS))
 
 
+def _title(text: str) -> None:
+    st.markdown(f'<div class="section-title">{text}</div>', unsafe_allow_html=True)
+
+
 def _kpi(col, label: str, value: str, delta: str | None = None,
          delta_color: str = theme.TEXT_SECONDARY, value_color: str | None = None) -> None:
     delta_html = f'<div class="kpi-delta" style="color:{delta_color}">{delta}</div>' if delta else ""
@@ -36,7 +40,7 @@ def _kpi(col, label: str, value: str, delta: str | None = None,
 def render() -> None:
     # 응급 상황판 특성상 스크롤 없이 한 화면에 다 보이도록 3열로 배치한다:
     # 왼쪽=핵심 지표, 가운데=날짜·그래프·브리핑, 오른쪽=유형분포·지도·이상징후.
-    kpi_col, main_col, side_col = st.columns([1, 2.4, 1.5], gap="small")
+    kpi_col, main_col, side_col = st.columns([0.9, 2.1, 1.7], gap="small")
 
     with main_col:
         selected_date = st.date_input(
@@ -104,7 +108,7 @@ def render() -> None:
         _kpi(st, "이상징후 발생지역", f"{len(alert_regions)}곳", "평시 대비 1.5배 이상")
 
     with chart_box:
-        st.markdown("**시간대별 신고량 — 실제 대 예측 (전국 합계)**")
+        _title("시간대별 신고량 — 실제 대 예측 (전국 합계)")
         fig = go.Figure()
         # 예측선은 하루 전체(00~24시)를 계속 보여준다 — 각 슬롯의 예측값 자체가
         # 그 시점까지 누적된 데이터로 3시간마다 갱신되어 계산된 것이므로,
@@ -129,7 +133,7 @@ def render() -> None:
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
     with briefing_box:
-        st.markdown("**AI 교대 브리핑**")
+        _title("AI 교대 브리핑")
         if len(alert_regions):
             top = alert_regions.iloc[0]
             brief = (
@@ -148,7 +152,7 @@ def render() -> None:
 
     with side_col:
         with st.container(border=True):
-            st.markdown("**유형 분포 (현재까지)**")
+            _title("유형 분포 (현재까지)")
             if not mix.empty:
                 ordered = mix.set_index("main_symptom").reindex(CAT_ORDER + [
                     c for c in mix["main_symptom"] if c not in CAT_ORDER
@@ -165,7 +169,7 @@ def render() -> None:
                 st.caption("표시할 데이터가 없습니다.")
 
         with st.container(border=True):
-            st.markdown("**시도별 실시간 위험도 지도**")
+            _title("시도별 실시간 위험도 지도")
             # 더 쨍하고(채도 높은) 진한 남색 테두리가 도는 마커 — 기본 경보색보다
             # 지도 위에서 또렷하게 보이도록 지도 전용 팔레트를 쓴다.
             map_marker_color = {
@@ -210,7 +214,7 @@ def render() -> None:
                 mapbox=dict(style="carto-positron", center=dict(lat=36.4, lon=127.9), zoom=5.4),
                 paper_bgcolor=theme.CARD_BG,
                 margin=dict(l=0, r=0, t=0, b=0),
-                height=380,
+                height=460,
                 legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="left", x=0, font=dict(size=10)),
             )
             st.plotly_chart(fig_map, use_container_width=True, config={"displayModeBar": False})

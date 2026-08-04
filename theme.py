@@ -18,6 +18,7 @@ TEXT_MUTED = "#9A9B9E"
 
 NAVY = "#1E3A78"
 RED = "#C4402B"
+LABEL_NAVY = "#162E67"  # 01 상황판 섹션 제목·KPI 라벨 전용 지정색
 
 # Status / alert palette — fixed, reserved for severity only (handoff: "Red는
 # 위험·경보 전용, 일반 UI엔 미사용"). Keys kept stable for the rest of the app;
@@ -112,10 +113,15 @@ def inject_css() -> None:
         .block-container {{
             padding-top: 3.0rem;
             padding-bottom: 1.2rem;
-            max-width: 1600px;
+            padding-left: 1.3rem;
+            padding-right: 1.3rem;
+            max-width: 1800px;
         }}
         div[data-testid="stVerticalBlock"] {{
             gap: 0.6rem;
+        }}
+        div[data-testid="stHorizontalBlock"] {{
+            gap: 0.5rem !important;
         }}
         h1, h2, h3, h4, p, span, label, div {{
             color: {TEXT_PRIMARY};
@@ -147,9 +153,16 @@ def inject_css() -> None:
         div[data-testid="stVerticalBlockBorderWrapper"] > div {{
             gap: 0.5rem;
         }}
-        .kpi-label {{ color: {TEXT_SECONDARY}; font-size: 0.78rem; font-weight: 500; }}
+        .kpi-label {{ color: {LABEL_NAVY}; font-size: 0.78rem; font-weight: 700; }}
         .kpi-value {{ font-size: 1.6rem; font-weight: 900; margin-top: 0.15rem; }}
         .kpi-delta {{ font-size: 0.78rem; margin-top: 0.2rem; }}
+        .section-title {{ color: {LABEL_NAVY}; font-weight: 700; }}
+        /* "기준 날짜" 입력 라벨 전용 — data-testid는 Streamlit 버전이 바뀌어도
+           안정적인 접근성 훅이라 내부 클래스 해시보다 안전하다. */
+        div[data-testid="stDateInput"] label p {{
+            color: {LABEL_NAVY} !important;
+            font-weight: 700 !important;
+        }}
 
         .badge {{
             display: inline-block;
