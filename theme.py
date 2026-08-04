@@ -158,14 +158,6 @@ def inject_css() -> None:
         .badge-serious {{ background: {STATUS['serious']}; }}
         .badge-critical {{ background: {STATUS['critical']}; }}
 
-        .region-tile {{
-            border-radius: 8px;
-            padding: 0.6rem 0.4rem;
-            text-align: center;
-            border: 1px solid {CARD_BORDER};
-        }}
-        .region-name {{ font-size: 0.72rem; color: {TEXT_SECONDARY}; }}
-        .region-count {{ font-size: 1.15rem; font-weight: 800; }}
 
         .stButton>button {{
             border-radius: 6px;
@@ -183,6 +175,22 @@ def inject_css() -> None:
             border: 1px solid {CARD_BORDER};
             border-radius: 8px;
             padding: 0.7rem 0.9rem;
+        }}
+        div[data-testid="stDateInput"] div[data-baseweb="base-input"] {{
+            position: relative;
+        }}
+        div[data-testid="stDateInput"] div[data-baseweb="base-input"]::after {{
+            content: "📅";
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            pointer-events: none;
+            font-size: 15px;
+        }}
+        input[data-testid="stDateInputField"] {{
+            padding-right: 2.4rem !important;
+            cursor: pointer;
         }}
         section[data-testid="stSidebar"] .stButton>button {{
             background: transparent;

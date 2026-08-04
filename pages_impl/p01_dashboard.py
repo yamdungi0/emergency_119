@@ -121,27 +121,45 @@ def render() -> None:
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
         with st.container(border=True):
-            st.markdown("**시도별 위험도 · 현재 누적 기준**")
-            cols = st.columns(6)
+            st.markdown("**시도별 실시간 위험도 지도 · 현재 누적 기준**")
             badge_color = {
                 "관심": theme.STATUS["good"], "주의": theme.STATUS["warning"],
                 "경계": theme.STATUS["serious"], "심각": theme.STATUS["critical"],
             }
-            for i, row in snapshot.sort_values("region_short").reset_index().iterrows():
-                col = cols[i % 6]
-                color = badge_color[row["risk"]]
-                col.markdown(
-                    f"""
-                    <div class="region-tile" style="border-color:{color}66;background:{color}14;">
-                        <div class="region-name">{row['region_short']}</div>
-                        <div class="region-count" style="color:{color}">{row['actual_so_far']}</div>
-                        <div class="muted">{row['risk']}</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+            map_df = snapshot.copy()
+            map_df["lat"] = map_df["region"].map(lambda r: dl.REGION_COORDS[r][0])
+            map_df["lon"] = map_df["region"].map(lambda r: dl.REGION_COORDS[r][1])
+            map_df["marker_size"] = 16 + map_df["actual_so_far"] * 3.5
+
+            fig_map = go.Figure()
+            for risk_level in ["관심", "주의", "경계", "심각"]:
+                level_df = map_df[map_df["risk"] == risk_level]
+                if level_df.empty:
+                    continue
+                fig_map.add_trace(go.Scattermapbox(
+                    lat=level_df["lat"], lon=level_df["lon"],
+                    mode="markers+text",
+                    marker=dict(size=level_df["marker_size"], color=badge_color[risk_level]),
+                    text=[f"{r} {c}" for r, c in zip(level_df["region_short"], level_df["actual_so_far"])],
+                    textposition="top center",
+                    name=risk_level,
+                    hovertext=[
+                        f"{r}<br>실제 누적 {c}건<br>평시 대비 {ratio:.1f}배<br>위험도 {risk_level}"
+                        for r, c, ratio in zip(level_df["region_short"], level_df["actual_so_far"], level_df["ratio_vs_baseline"])
+                    ],
+                    hoverinfo="text",
+                ))
+            fig_map.update_layout(
+                mapbox=dict(style="carto-positron", center=dict(lat=36.4, lon=127.9), zoom=5.6),
+                paper_bgcolor=theme.CARD_BG,
+                margin=dict(l=0, r=0, t=0, b=0),
+                height=460,
+                legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="left", x=0),
+            )
+            st.plotly_chart(fig_map, use_container_width=True, config={"displayModeBar": False})
             st.markdown(
-                '<div class="muted" style="margin-top:.6rem;">위험도 = 현재까지 실제 신고 ÷ 동일 시점까지의 평시(모델) 예측 누적</div>',
+                '<div class="muted" style="margin-top:.4rem;">마커 크기 = 실제 누적 건수 · 색상 = 위험도 · '
+                '위험도 = 현재까지 실제 신고 ÷ 동일 시점까지의 평시(모델) 예측 누적</div>',
                 unsafe_allow_html=True,
             )
 
