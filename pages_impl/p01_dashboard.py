@@ -152,23 +152,6 @@ def render() -> None:
 
     with side_col:
         with st.container(border=True):
-            _title("유형 분포 (현재까지)")
-            if not mix.empty:
-                ordered = mix.set_index("main_symptom").reindex(CAT_ORDER + [
-                    c for c in mix["main_symptom"] if c not in CAT_ORDER
-                ]).dropna(subset=["count"]).reset_index()
-                colors = (CAT_COLORS + [theme.TEXT_MUTED] * len(ordered))[: len(ordered)]
-                fig2 = go.Figure(go.Pie(
-                    labels=ordered["label"], values=ordered["count"], hole=0.55,
-                    marker=dict(colors=colors, line=dict(color=theme.CARD_BG, width=2)),
-                    textinfo="percent",
-                ))
-                fig2.update_layout(**theme.plotly_layout_defaults(), height=260, showlegend=True)
-                st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
-            else:
-                st.caption("표시할 데이터가 없습니다.")
-
-        with st.container(border=True):
             _title("시도별 실시간 위험도 지도")
             # 더 쨍하고(채도 높은) 진한 남색 테두리가 도는 마커 — 기본 경보색보다
             # 지도 위에서 또렷하게 보이도록 지도 전용 팔레트를 쓴다.
@@ -233,3 +216,20 @@ def render() -> None:
             else:
                 st.markdown(theme.status_badge("관심", "이상징후 없음"), unsafe_allow_html=True)
                 st.caption("모든 지역이 평시 대비 1.5배 미만입니다.")
+
+        with st.container(border=True):
+            _title("유형 분포 (현재까지)")
+            if not mix.empty:
+                ordered = mix.set_index("main_symptom").reindex(CAT_ORDER + [
+                    c for c in mix["main_symptom"] if c not in CAT_ORDER
+                ]).dropna(subset=["count"]).reset_index()
+                colors = (CAT_COLORS + [theme.TEXT_MUTED] * len(ordered))[: len(ordered)]
+                fig2 = go.Figure(go.Pie(
+                    labels=ordered["label"], values=ordered["count"], hole=0.55,
+                    marker=dict(colors=colors, line=dict(color=theme.CARD_BG, width=2)),
+                    textinfo="percent",
+                ))
+                fig2.update_layout(**theme.plotly_layout_defaults(), height=260, showlegend=True)
+                st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
+            else:
+                st.caption("표시할 데이터가 없습니다.")
