@@ -145,7 +145,7 @@ def inject_css() -> None:
             border: 1px solid {CARD_BORDER};
             border-radius: 8px;
             padding: 0.85rem 1.05rem;
-            margin-bottom: 0.4rem;
+            margin-bottom: 0.65rem;
         }}
         /* st.container(border=True) is used for cards — its own radius/border
            (auto-generated class, not reliably targetable) is close enough to
@@ -156,7 +156,7 @@ def inject_css() -> None:
         .kpi-label {{ color: {LABEL_NAVY}; font-size: 0.78rem; font-weight: 700; }}
         .kpi-value {{ font-size: 1.6rem; font-weight: 900; margin-top: 0.15rem; }}
         .kpi-delta {{ font-size: 0.78rem; margin-top: 0.2rem; }}
-        .section-title {{ color: {LABEL_NAVY}; font-weight: 700; }}
+        .section-title {{ color: {LABEL_NAVY}; font-weight: 700; margin-bottom: 0.45rem; }}
         /* "기준 날짜" 입력 라벨 전용 — data-testid는 Streamlit 버전이 바뀌어도
            안정적인 접근성 훅이라 내부 클래스 해시보다 안전하다. */
         div[data-testid="stDateInput"] label p {{

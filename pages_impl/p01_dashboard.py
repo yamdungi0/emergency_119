@@ -55,9 +55,6 @@ def render() -> None:
             key="dash_date",
         )
         month_day = selected_date.strftime("%m-%d")
-        st.caption(
-            "실제·예측 모두 2024년 합성 실시간 입력 샘플(SYNTHETIC_119_SIMULATOR) 기반"
-        )
         chart_box = st.container(border=True)
         up_to_slot = st.select_slider(
             "실시간 진행 시각 — 이 시각까지 신고가 들어온 것으로 시뮬레이션",
@@ -127,7 +124,11 @@ def render() -> None:
                 ))
                 layout_defaults = theme.plotly_layout_defaults()
                 layout_defaults["margin"] = dict(l=4, r=4, t=4, b=4)
-                fig2.update_layout(**layout_defaults, height=170, showlegend=False)
+                layout_defaults["legend"] = dict(
+                    orientation="h", yanchor="top", y=-0.05, xanchor="center", x=0.5,
+                    font=dict(size=9),
+                )
+                fig2.update_layout(**layout_defaults, height=250, showlegend=True)
                 st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
             else:
                 st.caption("표시할 데이터가 없습니다.")
