@@ -42,6 +42,9 @@ def render() -> None:
     # 왼쪽=핵심 지표, 가운데=날짜·그래프·브리핑, 오른쪽=유형분포·지도·이상징후.
     kpi_col, main_col, side_col = st.columns([0.9, 2.1, 1.7], gap="small")
 
+    panel = dl.load_2024_panel()
+    using_real_model = bool(panel["prediction_source"].iloc[0] == "lightgbm")
+
     with main_col:
         selected_date = st.date_input(
             "기준 날짜",
@@ -63,9 +66,13 @@ def render() -> None:
             format_func=lambda h: f"{h:02d}:00",
             key="dash_slot",
         )
-        st.caption(
-            "예측 = 그 시점까지 누적된 데이터로 계산한 최근 7일 이동평균 + 동일 요일·시간대 평균"
-        )
+        if using_real_model:
+            st.caption("예측 = 학습된 LightGBM Poisson 모델 추론 (2019-2022 학습, 06 화면과 동일 모델)")
+        else:
+            st.caption(
+                "예측 = LightGBM 로드 실패로 근사치 표시 중 — "
+                "최근 7일 이동평균 + 동일 요일·시간대 평균 (개발 환경 한정, 배포 환경에서는 실제 모델 사용)"
+            )
         briefing_box = st.container(border=True)
 
     series = dl.national_day_series(month_day)
@@ -79,7 +86,6 @@ def render() -> None:
     # 월-일·시각만으로 매칭한다 (연도는 비교하지 않음).
     next_start = pd.Timestamp(selected_date) + pd.Timedelta(hours=int(up_to_slot) + 3)
     next_end = next_start + pd.Timedelta(hours=3)
-    panel = dl.load_2024_panel()
     next_window_pred = float(
         panel.loc[
             (panel["month_day"] == next_start.strftime("%m-%d")) & (panel["slot"] == next_start.hour),

@@ -1,13 +1,17 @@
 """Cached data access for the demo. All heavy CSVs are loaded once per session.
 
 - data/test_predictions_2023.csv: LightGBM Poisson 백테스트 산출물 (train 2019-2022, test
-  2023) — 06 관리자·검증 화면의 모델 성능 증빙에만 사용한다. 2023년은 학습·검증 도구일 뿐,
-  01 상황판이 보여주는 "지금 시점 예측"의 근거가 아니다.
-- data/realtime_sample_2024.csv: 2024년 임의(합성) 실시간 신고 스트림. 01 상황판의 "실제"와
-  "예측" 모두 이 파일 하나로만 계산한다 — 예측은 같은 2024년 타임라인 안에서, 그 시점까지
-  누적된 데이터만으로(미래를 보지 않고) 최근 7일 이동평균과 동일 요일·시간대 평균을 결합해
-  구한다. 원 LightGBM 모델에서도 이 두 특성이 전체 중요도의 약 72%를 차지했다
-  (feature_importance.csv: rolling_mean_56 + historical_same_slot_mean).
+  2023) — 06 관리자·검증 화면의 모델 성능 증빙에 사용한다.
+- data/lightgbm_poisson_model.txt: 위 백테스트를 만든 것과 동일한, 실제 학습된 LightGBM
+  Poisson 부스터 원본 (train 2019-2022). 01 상황판의 "예측"은 이 모델을 그대로 불러와
+  추론한다 — 근사치가 아니다.
+- data/realtime_sample_2024.csv: 2024년 임의(합성) 실시간 신고 스트림. 01 상황판의 "실제"
+  값과, 위 모델에 넣을 특성(직전 관측값 기반 lag/rolling/과거평균) 모두 이 파일 하나로만
+  계산한다 — 예측 시점 이후의 값은 특성 계산에 전혀 쓰지 않는다(shift(1) 이후 계산).
+- lightgbm 임포트/네이티브 라이브러리 로드가 실패하는 환경(예: Homebrew 없는 로컬 macOS)
+  에서는 원 모델의 상위 2개 특성(rolling_mean_56 + historical_same_slot_mean, 전체
+  중요도의 약 72%)만으로 근사하는 폴백을 사용한다 — Streamlit Cloud(Linux)에서는 실제
+  모델이 로드되어 이 폴백은 쓰이지 않는 것이 정상이다.
 """
 
 from __future__ import annotations
@@ -15,6 +19,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -86,11 +91,96 @@ ROLLING_MIN_PERIODS = 14  # 최소 1.75일치 확보되면 이동평균 사용
 ROLLING_WEIGHT = 0.6
 HISTORICAL_WEIGHT = 0.4
 
+LGB_MODEL_PATH = DATA_DIR / "lightgbm_poisson_model.txt"
+PERIODS_PER_DAY = 8
+PERIODS_PER_WEEK = 56
+LAG_SLOTS = [1, 2, 8, 16, 56, 112]
+# run_metadata.json의 "features"와 동일한 순서 — 학습 스크립트 add_features()를 그대로 이식.
+LGB_FEATURE_ORDER = [
+    "region", "month", "dow", "slot", "quarter", "is_weekend", "days_since_start",
+    "slot_sin", "slot_cos", "dow_sin", "dow_cos", "doy_sin", "doy_cos",
+    *[f"lag_{lag}" for lag in LAG_SLOTS],
+    "rolling_mean_8", "rolling_mean_56", "rolling_std_56",
+    "historical_region_mean", "historical_same_slot_mean",
+]
+
+
+@st.cache_resource(show_spinner=False)
+def _load_lgb_booster():
+    import lightgbm as lgb  # 로컬(Homebrew 없는 macOS)에서는 libomp 부재로 임포트 자체가 실패할 수 있음
+
+    return lgb.Booster(model_file=str(LGB_MODEL_PATH))
+
+
+def _build_lgb_features(panel: pd.DataFrame) -> pd.DataFrame:
+    """학습 스크립트의 add_features()와 동일한 24개 특성을 causal(shift(1) 이후)하게 구성한다.
+    "slot"은 원 모델 기준 시간대 인덱스(0~7, hour//3)이며, 앱 전역에서 쓰는
+    panel["slot"](=hour 값 0,3,...,21)과는 다른 이름 충돌을 피하기 위해 별도 프레임에서만 쓴다."""
+    p = panel[["region", "time_block", "y"]].sort_values(["region", "time_block"]).reset_index(drop=True)
+    ts = p["time_block"]
+
+    p["month"] = ts.dt.month
+    p["dow"] = ts.dt.dayofweek
+    p["quarter"] = ts.dt.quarter
+    p["is_weekend"] = (p["dow"] >= 5).astype(int)
+    p["dayofyear"] = ts.dt.dayofyear
+    p["slot"] = (ts.dt.hour // 3).astype(int)
+    p["days_since_start"] = (ts - pd.Timestamp("2019-01-01")).dt.days
+
+    p["slot_sin"] = np.sin(2 * np.pi * p["slot"] / PERIODS_PER_DAY)
+    p["slot_cos"] = np.cos(2 * np.pi * p["slot"] / PERIODS_PER_DAY)
+    p["dow_sin"] = np.sin(2 * np.pi * p["dow"] / 7)
+    p["dow_cos"] = np.cos(2 * np.pi * p["dow"] / 7)
+    p["doy_sin"] = np.sin(2 * np.pi * p["dayofyear"] / 365.25)
+    p["doy_cos"] = np.cos(2 * np.pi * p["dayofyear"] / 365.25)
+
+    group = p.groupby("region", sort=False, observed=True)["y"]
+    for lag in LAG_SLOTS:
+        p[f"lag_{lag}"] = group.shift(lag)
+    p["rolling_mean_8"] = group.transform(lambda s: s.shift(1).rolling(8, min_periods=2).mean())
+    p["rolling_mean_56"] = group.transform(lambda s: s.shift(1).rolling(56, min_periods=8).mean())
+    p["rolling_std_56"] = group.transform(lambda s: s.shift(1).rolling(56, min_periods=8).std())
+    p["historical_region_mean"] = group.transform(lambda s: s.shift(1).expanding(min_periods=8).mean())
+    p["historical_same_slot_mean"] = p.groupby(
+        ["region", "dow", "slot"], sort=False, observed=True
+    )["y"].transform(lambda s: s.shift(1).expanding(min_periods=1).mean())
+
+    # 연초(첫 2주) 등 lag_112까지 쌓이지 않은 구간 — 학습 스크립트는 이런 행을 통째로
+    # dropna()하지만, 상황판은 연중 아무 날짜나 고를 수 있어야 하므로 0으로 채워 대체한다.
+    numeric_cols = [c for c in LGB_FEATURE_ORDER if c != "region"]
+    X = p[LGB_FEATURE_ORDER].copy()
+    X[numeric_cols] = X[numeric_cols].fillna(0.0)
+    X["region"] = X["region"].astype("category")
+    return X
+
+
+def _fallback_blend_prediction(panel: pd.DataFrame) -> pd.Series:
+    """lightgbm을 쓸 수 없는 환경(로컬 macOS 등)을 위한 근사 — 원 모델 상위 2개 특성만 결합."""
+    group = panel.groupby("region", sort=False, observed=True)["y"]
+    rolling_mean_56 = group.transform(
+        lambda s: s.shift(1).rolling(ROLLING_SLOTS, min_periods=ROLLING_MIN_PERIODS).mean()
+    )
+    historical_same_slot_mean = panel.groupby(
+        ["region", "dow", "slot"], sort=False, observed=True
+    )["y"].transform(lambda s: s.shift(1).expanding(min_periods=1).mean())
+    overall_region_mean = group.transform("mean")
+
+    has_roll = rolling_mean_56.notna()
+    has_hist = historical_same_slot_mean.notna()
+    blended = ROLLING_WEIGHT * rolling_mean_56.fillna(0) + HISTORICAL_WEIGHT * historical_same_slot_mean.fillna(0)
+
+    prediction = pd.Series(overall_region_mean.to_numpy(), index=panel.index, dtype=float)
+    prediction[has_roll & ~has_hist] = rolling_mean_56[has_roll & ~has_hist]
+    prediction[has_hist & ~has_roll] = historical_same_slot_mean[has_hist & ~has_roll]
+    prediction[has_roll & has_hist] = blended[has_roll & has_hist]
+    return prediction.clip(lower=0)
+
 
 @st.cache_data(show_spinner=False)
 def load_2024_panel() -> pd.DataFrame:
-    """2024 합성 실시간 샘플을 지역×3시간 슬롯 격자로 집계하고, 그 시점까지의 데이터만으로
-    인과적(causal) 예측치를 계산한다. 미래 값을 보지 않도록 전부 shift(1) 이후 계산한다."""
+    """2024 합성 실시간 샘플을 지역×3시간 슬롯 격자로 집계하고, 실제 학습된 LightGBM 모델로
+    그 시점까지의 데이터만 사용한(causal) 예측치를 계산한다. "prediction_source" 컬럼은
+    실제 어느 쪽으로 계산됐는지("lightgbm" 또는 "fallback_blend")를 모든 행에 동일하게 담는다."""
     rt = load_realtime()
     counts = (
         rt.groupby(["region", "time_block_start"], observed=True)
@@ -109,24 +199,16 @@ def load_2024_panel() -> pd.DataFrame:
     panel["slot"] = panel["time_block"].dt.hour
     panel["month_day"] = panel["time_block"].dt.strftime("%m-%d")
 
-    group = panel.groupby("region", sort=False, observed=True)["y"]
-    panel["rolling_mean_56"] = group.transform(
-        lambda s: s.shift(1).rolling(ROLLING_SLOTS, min_periods=ROLLING_MIN_PERIODS).mean()
-    )
-    panel["historical_same_slot_mean"] = panel.groupby(
-        ["region", "dow", "slot"], sort=False, observed=True
-    )["y"].transform(lambda s: s.shift(1).expanding(min_periods=1).mean())
-    overall_region_mean = group.transform("mean")
+    try:
+        X = _build_lgb_features(panel)
+        booster = _load_lgb_booster()
+        raw_pred = booster.predict(X)
+        panel["prediction"] = np.clip(raw_pred, 1e-6, None)
+        panel["prediction_source"] = "lightgbm"
+    except Exception:
+        panel["prediction"] = _fallback_blend_prediction(panel)
+        panel["prediction_source"] = "fallback_blend"
 
-    has_roll = panel["rolling_mean_56"].notna()
-    has_hist = panel["historical_same_slot_mean"].notna()
-    blended = ROLLING_WEIGHT * panel["rolling_mean_56"].fillna(0) + HISTORICAL_WEIGHT * panel["historical_same_slot_mean"].fillna(0)
-
-    prediction = pd.Series(overall_region_mean.to_numpy(), index=panel.index, dtype=float)
-    prediction[has_roll & ~has_hist] = panel.loc[has_roll & ~has_hist, "rolling_mean_56"]
-    prediction[has_hist & ~has_roll] = panel.loc[has_hist & ~has_roll, "historical_same_slot_mean"]
-    prediction[has_roll & has_hist] = blended[has_roll & has_hist]
-    panel["prediction"] = prediction.clip(lower=0)
     return panel
 
 
