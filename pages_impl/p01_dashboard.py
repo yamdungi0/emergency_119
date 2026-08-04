@@ -182,8 +182,11 @@ def render() -> None:
                     continue
                 fig_map.add_trace(go.Scattermapbox(
                     lat=level_df["lat"], lon=level_df["lon"],
-                    mode="markers",
+                    mode="markers+text",
                     marker=dict(size=level_df["marker_size"], color=badge_color[risk_level]),
+                    text=[f"{r} {c}" for r, c in zip(level_df["region_short"], level_df["actual_so_far"])],
+                    textposition="top center",
+                    textfont=dict(size=10, color=theme.TEXT_PRIMARY),
                     name=risk_level,
                     hovertext=[
                         f"{r}<br>실제 누적 {c}건<br>평시 대비 {ratio:.1f}배<br>위험도 {risk_level}"
