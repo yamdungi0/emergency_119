@@ -193,6 +193,16 @@ def inject_css() -> None:
             padding-right: 2.4rem !important;
             cursor: pointer;
         }}
+        /* 캘린더 팝업에서 선택된 날짜는 Navy 원(::after)이 뒤에 깔리는데 숫자 글자색이
+           그대로 어두운 색이라 안 보였다 — 흰 글자로 덮어씀. aria-label은 BaseWeb
+           datepicker가 항상 "Selected..."로 시작하게 채워주는 접근성 속성이라
+           내부 클래스 해시보다 안정적인 훅이다. */
+        div[data-baseweb="calendar"] div[role="gridcell"][aria-label^="Selected"] {{
+            color: #ffffff !important;
+        }}
+        div[data-baseweb="calendar"] div[role="gridcell"][aria-label^="Selected"] div {{
+            color: #ffffff !important;
+        }}
         section[data-testid="stSidebar"] .stButton>button {{
             background: transparent;
             border: 1px solid rgba(255,255,255,0.18);

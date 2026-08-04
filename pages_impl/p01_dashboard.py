@@ -101,20 +101,19 @@ def render() -> None:
         with st.container(border=True):
             st.markdown("**시간대별 신고량 — 실제 대 예측 (전국 합계)**")
             fig = go.Figure()
-            # "지금"을 기준으로 왼쪽=실제(지나간 시간), 오른쪽=예측(향후)만 표시한다.
-            # 슬라이더를 움직이면 이 경계가 함께 움직여야, 예측이 "지금 시점부터 향후"라는
-            # 기획서 정의가 그래프에서도 눈에 보인다.
-            prediction_masked = series["prediction"].where(series["slot"] >= up_to_slot)
+            # 예측선은 하루 전체(00~24시)를 계속 보여준다 — 각 슬롯의 예측값 자체가
+            # 그 시점까지 누적된 데이터로 3시간마다 갱신되어 계산된 것이므로,
+            # 선을 자르지 않아도 "3시간마다 달라지는 예측"이 곡선 모양에 이미 반영돼 있다.
             fig.add_trace(go.Scatter(
-                x=[f"{h:02d}시" for h in dl.SLOTS], y=prediction_masked,
-                name="예측 (지금 이후)", mode="lines+markers",
+                x=[f"{h:02d}시" for h in dl.SLOTS], y=series["prediction"],
+                name="예측", mode="lines+markers",
                 line=dict(color=theme.CATEGORICAL["blue"], dash="dash", width=2),
                 marker=dict(size=6),
             ))
             actual_masked = series["actual"].where(series["slot"] <= up_to_slot)
             fig.add_trace(go.Scatter(
                 x=[f"{h:02d}시" for h in dl.SLOTS], y=actual_masked,
-                name="실제 (지금까지)", mode="lines+markers",
+                name="실제", mode="lines+markers",
                 line=dict(color=theme.STATUS["critical"], width=2.5),
                 marker=dict(size=7),
             ))
