@@ -184,12 +184,6 @@ def inject_css() -> None:
             border-radius: 8px;
             padding: 0.7rem 0.9rem;
         }}
-        .nav-btn-active > button {{
-            border-color: #ffffff !important;
-            color: #ffffff !important;
-            background: rgba(255,255,255,0.14) !important;
-            font-weight: 700;
-        }}
         section[data-testid="stSidebar"] .stButton>button {{
             background: transparent;
             border: 1px solid rgba(255,255,255,0.18);

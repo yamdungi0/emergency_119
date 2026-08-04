@@ -71,10 +71,6 @@ def load_run_metadata() -> dict:
     return json.loads((DATA_DIR / "run_metadata.json").read_text())
 
 
-def demo_day_options() -> list[str]:
-    return ["08-04", "01-13", "03-22", "05-31", "07-05", "10-18", "11-24", "12-31"]
-
-
 def national_day_series(month_day: str) -> pd.DataFrame:
     """예측(2023) vs 실제(2024 합성) 전국 합계, 3시간 슬롯별."""
     pred = load_predictions()

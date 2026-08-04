@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import datetime as dt
+
 import plotly.graph_objects as go
 import streamlit as st
 
 import data_loader as dl
 import theme
+
+DEMO_YEAR = 2026
 
 CAT_ORDER = ["약물과다", "약물중독", "약물오용", "약물부작용", "마약중독"]
 CAT_COLORS = [
@@ -32,7 +36,15 @@ def _kpi(col, label: str, value: str, delta: str | None = None, delta_color: str
 
 def render() -> None:
     c1, c2 = st.columns([1, 1])
-    month_day = c1.selectbox("기준 날짜 (데모)", dl.demo_day_options(), index=0, key="dash_day")
+    selected_date = c1.date_input(
+        "기준 날짜",
+        value=dt.date(DEMO_YEAR, 8, 4),
+        min_value=dt.date(DEMO_YEAR, 1, 1),
+        max_value=dt.date(DEMO_YEAR, 12, 31),
+        format="YYYY-MM-DD",
+        key="dash_date",
+    )
+    month_day = selected_date.strftime("%m-%d")
     up_to_slot = c2.select_slider(
         "실시간 진행 시각 — 이 시각까지 신고가 들어온 것으로 시뮬레이션",
         options=dl.SLOTS,
@@ -75,14 +87,14 @@ def render() -> None:
             fig = go.Figure()
             fig.add_trace(go.Scatter(
                 x=[f"{h:02d}시" for h in dl.SLOTS], y=series["prediction"],
-                name="예측 (2023 백테스트)", mode="lines+markers",
+                name="예측", mode="lines+markers",
                 line=dict(color=theme.CATEGORICAL["blue"], dash="dash", width=2),
                 marker=dict(size=6),
             ))
             actual_masked = series["actual"].where(series["slot"] <= up_to_slot)
             fig.add_trace(go.Scatter(
                 x=[f"{h:02d}시" for h in dl.SLOTS], y=actual_masked,
-                name="실제 (2024 합성 실시간)", mode="lines+markers",
+                name="실제", mode="lines+markers",
                 line=dict(color=theme.STATUS["critical"], width=2.5),
                 marker=dict(size=7),
             ))
@@ -91,11 +103,6 @@ def render() -> None:
                            annotation_font_color=theme.TEXT_SECONDARY)
             fig.update_layout(**theme.plotly_layout_defaults(), height=340)
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-            st.markdown(
-                '<div class="muted">실시간 신고 데이터가 아직 없어, 2023년 백테스트 예측과 2024년 합성 샘플로 흐름을 시연합니다. '
-                '실제 신고 데이터가 누적되면 예측선은 그 데이터로 재학습·갱신됩니다.</div>',
-                unsafe_allow_html=True,
-            )
 
         with st.container(border=True):
             st.markdown("**시도별 위험도 · 현재 누적 기준**")
@@ -168,12 +175,3 @@ def render() -> None:
                 st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
             else:
                 st.caption("표시할 데이터가 없습니다.")
-
-    with st.container(border=True):
-        st.markdown("**상위 5개 주의지역**")
-        if len(alert_regions):
-            show = alert_regions.head(5)[["region_short", "actual_so_far", "predicted_so_far", "ratio_vs_baseline", "risk"]]
-            show.columns = ["지역", "실제 누적", "동시점 예측", "평시 대비 배수", "위험도"]
-            st.dataframe(show, hide_index=True, use_container_width=True)
-        else:
-            st.caption("현재 주의가 필요한 지역이 없습니다.")

@@ -19,7 +19,7 @@ if "page" not in st.session_state:
     st.session_state["page"] = "dashboard"
 
 PAGES = {
-    "dashboard": (p01_dashboard, "전국 약물안전 상황판", "상황실 · 향후 4시간 수요예측 및 이상징후"),
+    "dashboard": (p01_dashboard, "전국 약물안전 상황판", "상황실 · 향후 3시간 수요예측 및 이상징후"),
     "intake": (p02_intake, "약물 신고 접수 및 구조화 문진", "통화 내용을 표준 필드로 자동 구조화"),
     "card": (p03_card, "표준지침 기반 상담지원 카드", "119 현장응급처치 표준지침 기준"),
     "hospital": (p04_hospital, "응급의료기관 연계 지도", "필수조건 필터 + 다기준 점수화"),
@@ -40,11 +40,17 @@ with st.sidebar:
     for key, num, label in theme.NAV_ITEMS:
         active = st.session_state["page"] == key
         css_class = "nav-btn-active" if active else ""
-        st.markdown(f'<div class="{css_class}">', unsafe_allow_html=True)
-        if st.button(f"{num}　{label}", key=f"nav_{key}", use_container_width=True):
-            st.session_state["page"] = key
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(key=f"navwrap_{key}"):
+            if st.button(f"{num}　{label}", key=f"nav_{key}", use_container_width=True):
+                st.session_state["page"] = key
+                st.rerun()
+        if active:
+            st.markdown(
+                f"<style>div[class*='st-key-navwrap_{key}'] button {{"
+                "border-color:#ffffff !important;color:#ffffff !important;"
+                "background:rgba(255,255,255,0.14) !important;font-weight:700;}}</style>",
+                unsafe_allow_html=True,
+            )
 
     st.divider()
     st.caption("데이터: 소방청 구급상황관리 현황(2019-2023) · 국립중앙의료원 응급의료기관 정보")
