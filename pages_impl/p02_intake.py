@@ -27,10 +27,14 @@ PRESETS = {
 # 기존 구급활동일지(e-Triage 연계)를 흉내낸 데모용 레코드 — 실제 병원/개인정보가 아닌
 # PRESETS 시나리오에 맞춘 가상의 값입니다. 통화 원문에서 뽑을 수 없는 항목(연락처·주소·
 # 과거병력 등)까지 포함하므로, 좌측 패널은 "AI 보조"가 아니라 이미 채워진 일지로 둡니다.
+# lat/lon: 실제 구급대는 병원 연계 API를 주소가 아니라 위경도 기준으로 조회하므로,
+# 04 병원연계 화면이 이 좌표를 그대로 이어받아 후보 병원 거리를 계산한다(번지수까지
+# 정확한 좌표는 아니지만, 실제로 존재하는 서울 시내 장소를 기준으로 한 근사치).
 EMS_LOG_DEMO = {
     "진정제·수면제 과량복용 (의식저하 의심)": dict(
         case_no="20260804-1456", name="김ㅇ순", sex_age="여 / 54세", phone="010-1234-5678",
-        address="서울특별시 관악구 신림동", onset_place="자택 거실", onset_time="2026-08-04 14:10",
+        address="서울특별시 관악구 신림동 (신림역 인근 PC방)", onset_place="PC방", onset_time="2026-08-04 14:10",
+        lat=37.4844, lon=126.9296,
         chief_complaint="의식저하", symptom_onset="13:30경 (약 40분 전)", etc_note="현장에 수면제 약통 1개 발견",
         past_hx="우울증", drug_hx="수면제 복용 중 (종류·용량 미상)", allergy="없음", etc_hx="특이사항 없음",
         vitals=dict(consciousness="혼돈 (GCS E3M5)", bp="96/60 mmHg", hr="58 회/분", rr="9 회/분",
@@ -41,7 +45,8 @@ EMS_LOG_DEMO = {
     ),
     "오피오이드 과량복용 (호흡저하 의심)": dict(
         case_no="20260804-1512", name="박ㅇ현", sex_age="남 / 33세", phone="010-9876-5432",
-        address="서울특별시 영등포구 문래동", onset_place="공원 벤치", onset_time="2026-08-04 15:05",
+        address="서울특별시 동작구 신대방동 (보라매공원)", onset_place="보라매공원", onset_time="2026-08-04 15:05",
+        lat=37.4952, lon=126.9223,
         chief_complaint="무반응·호흡저하", symptom_onset="15:00경 (약 10분 전)", etc_note="약봉지에 '펜타닐' 표기 확인",
         past_hx="확인 필요", drug_hx="확인 필요", allergy="확인 필요", etc_hx="목격자 진술 확보",
         vitals=dict(consciousness="무반응 (GCS E1M1)", bp="확인 중", hr="확인 중", rr="4 회/분",
@@ -52,7 +57,8 @@ EMS_LOG_DEMO = {
     ),
     "농약·화학물질 노출 (2차오염 위험)": dict(
         case_no="20260804-1608", name="이ㅇ자", sex_age="여 / 61세", phone="010-2468-1357",
-        address="경기도 여주시 OO면", onset_place="농경지", onset_time="2026-08-04 16:00",
+        address="서울특별시 구로구 항동 (도시텃밭)", onset_place="도시텃밭", onset_time="2026-08-04 16:00",
+        lat=37.4835, lon=126.8319,
         chief_complaint="구토·침흘림", symptom_onset="15:50경 (약 10분 전)", etc_note="의복에 농약 오염 의심, 2차 오염 주의",
         past_hx="고혈압", drug_hx="혈압약 복용 중", allergy="없음", etc_hx="현장 접근 시 보호구 필요",
         vitals=dict(consciousness="명료 (GCS E4M6)", bp="132/84 mmHg", hr="102 회/분", rr="22 회/분",
@@ -156,6 +162,12 @@ def render() -> None:
     preset = st.selectbox("사건 선택 (e-Triage 연동 시뮬레이션)", list(PRESETS), key="intake_preset")
     transcript = PRESETS[preset]
     log = EMS_LOG_DEMO[preset]
+    # 04 병원연계가 사건과 무관하게 항상 같은 위치를 쓰던 문제를 고치기 위해, 선택된
+    # 사건의 위경도를 세션에 넘긴다 — 실제 소방 구급대도 병원 API를 위경도로 조회한다.
+    st.session_state["patient_location"] = {
+        "label": log["onset_place"], "address": log["address"],
+        "lat": log["lat"], "lon": log["lon"],
+    }
 
     if st.session_state.get("intake_transcript_used") != transcript:
         result = build_protocol(transcript, None, [])
@@ -192,6 +204,9 @@ def render() -> None:
             c2.markdown(_row("주소", log["address"]), unsafe_allow_html=True)
             c1.markdown(_row("발생장소", log["onset_place"]), unsafe_allow_html=True)
             c2.markdown(_row("발생일시", log["onset_time"]), unsafe_allow_html=True)
+            # 병원연계 API는 주소가 아니라 위경도로 후보기관을 조회하므로, 구급활동일지에도
+            # 위경도를 그대로 노출해 04 병원연계 화면과 동일한 좌표를 쓴다는 걸 보여준다.
+            c1.markdown(_row("위경도", f"{log['lat']:.4f}, {log['lon']:.4f}"), unsafe_allow_html=True)
 
             st.markdown("**환자 증상**")
             c1, c2 = st.columns(2)

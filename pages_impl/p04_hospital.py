@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from datetime import datetime, timedelta
 
 import plotly.graph_objects as go
@@ -7,28 +8,43 @@ import streamlit as st
 
 import theme
 
-PATIENT = {"name": "환자 현재 위치", "region": "서울 관악구 신림동", "lat": 37.4842, "lon": 126.9294}
+DEFAULT_PATIENT = {"label": "환자 현재 위치", "address": "서울 관악구 신림동", "lat": 37.4842, "lon": 126.9294}
 
 # 샘플 응급의료기관 후보 — 실서비스에서는 국립중앙의료원 응급의료기관 정보 API로 대체됩니다.
+# eta_min은 더 이상 고정값이 아니라 환자 위경도 기준 직선거리로 매번 계산한다(아래
+# _eta_minutes 참고) — 02에서 사건을 바꾸면 후보 병원까지의 거리도 같이 바뀌어야
+# 실제 위경도 기반 병원 API를 흉내낸 의미가 있기 때문.
 HOSPITALS = [
     {
         "code": "A", "name": "A 지역응급의료센터", "tier": "지역응급의료센터", "lat": 37.5013, "lon": 126.9433,
-        "eta_min": 14, "er_beds": 12, "icu_beds": 2, "ventilator": True, "drug_icu": True,
-        "updated_min": 6,
+        "er_beds": 12, "icu_beds": 2, "ventilator": True, "drug_icu": True, "updated_min": 6,
     },
     {
         "code": "B", "name": "B 권역응급의료센터", "tier": "권역응급의료센터", "lat": 37.4563, "lon": 126.8952,
-        "eta_min": 21, "er_beds": 6, "icu_beds": 1, "ventilator": True, "drug_icu": True,
-        "updated_min": 3,
+        "er_beds": 6, "icu_beds": 1, "ventilator": True, "drug_icu": True, "updated_min": 3,
     },
     {
         "code": "C", "name": "C 응급의료기관", "tier": "지역응급의료기관", "lat": 37.4785, "lon": 126.9612,
-        "eta_min": 9, "er_beds": 4, "icu_beds": 0, "ventilator": False, "drug_icu": False,
-        "updated_min": 7,
+        "er_beds": 4, "icu_beds": 0, "ventilator": False, "drug_icu": False, "updated_min": 7,
     },
 ]
 
 STAGES = ["API상 후보", "전화 확인 중", "수용 확인", "최종 이송 결정"]
+
+
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    r = 6371.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlambda / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+def _eta_minutes(distance_km: float) -> int:
+    # 도심 구급차 평균 이동속도를 시속 25km로 가정한 근사치 — 직선거리 기준이라
+    # 실제 도로 이동시간보다 짧게 나올 수 있음(샘플 데이터 한계로 문서에도 명시).
+    return max(3, round(distance_km / 25 * 60))
 
 
 def score_hospital(h: dict, require_icu: bool, require_vent: bool) -> dict:
@@ -98,7 +114,13 @@ def render() -> None:
     require_icu = bool(facts.conscious is False)
     require_vent = bool(facts.normal_breathing is False)
 
-    scored = [{**h, **score_hospital(h, require_icu, require_vent)} for h in HOSPITALS]
+    patient = st.session_state.get("patient_location", DEFAULT_PATIENT)
+    hospitals_with_eta = []
+    for h in HOSPITALS:
+        distance_km = _haversine_km(patient["lat"], patient["lon"], h["lat"], h["lon"])
+        hospitals_with_eta.append({**h, "distance_km": round(distance_km, 1), "eta_min": _eta_minutes(distance_km)})
+
+    scored = [{**h, **score_hospital(h, require_icu, require_vent)} for h in hospitals_with_eta]
     passed = sorted([h for h in scored if h["hard_pass"]], key=lambda x: -x["total"])
     top = passed[0] if passed else None
 
@@ -118,6 +140,7 @@ def render() -> None:
             f'<div class="muted">&nbsp;</div><span class="badge" style="background:{theme.CATEGORICAL["violet"]};">병원 추천이 아닌 적합성 설명과 전달문 보조</span>',
             unsafe_allow_html=True,
         )
+        st.caption(f"현재 위치: {patient['label']} · {patient['address']} ({patient['lat']:.4f}, {patient['lon']:.4f})")
 
     with st.container(border=True):
         cols = st.columns(len(STAGES))
@@ -136,7 +159,7 @@ def render() -> None:
         st.markdown("**① 후보 의료기관**")
         fig = go.Figure()
         fig.add_trace(go.Scattermapbox(
-            lat=[PATIENT["lat"]], lon=[PATIENT["lon"]], mode="markers+text",
+            lat=[patient["lat"]], lon=[patient["lon"]], mode="markers+text",
             marker=dict(size=15, color=theme.STATUS["critical"]),
             text=["★"], textposition="middle center", name="환자 위치",
         ))
@@ -150,7 +173,7 @@ def render() -> None:
         fig.update_layout(
             mapbox=dict(
                 style="https://basemaps.cartocdn.com/gl/positron-nolabels-gl-style/style.json",
-                center=dict(lat=PATIENT["lat"], lon=PATIENT["lon"]), zoom=11.3,
+                center=dict(lat=patient["lat"], lon=patient["lon"]), zoom=12.5,
             ),
             paper_bgcolor=theme.CARD_BG, margin=dict(l=0, r=0, t=0, b=0), height=260, showlegend=False,
         )
