@@ -132,18 +132,22 @@ def _row(label: str, value: str) -> str:
 
 
 def _mapped_field(label: str, value) -> str:
+    # space-between으로 라벨/배지를 컬럼 양 끝에 붙이면, 컬럼이 넓어질 때(와이드 화면)
+    # 값이 짧은 행일수록 라벨과 배지 사이가 과도하게 벌어져 행마다 배지 위치가
+    # 들쭉날쭉해 보였다 — 라벨 폭을 고정하고 값은 그 옆에 붙여서(gap) 항상 같은
+    # 위치에서 시작하도록 정렬한다.
     if value is None or value == [] or value == "":
         return (
-            f'<div style="display:flex;justify-content:space-between;align-items:center;margin:.3rem 0;">'
-            f'<span class="muted">{label}</span>'
+            f'<div style="display:flex;align-items:center;gap:.6rem;margin:.35rem 0;">'
+            f'<span class="muted" style="width:8.5em;flex-shrink:0;">{label}</span>'
             f'<span class="badge badge-warning">미확인</span></div>'
         )
     if isinstance(value, list):
         value = ", ".join(str(v) for v in value)
     return (
-        f'<div style="display:flex;justify-content:space-between;align-items:center;margin:.3rem 0;">'
-        f'<span class="muted">{label}</span>'
-        f'<span><b>{value}</b> <span class="badge badge-good">매핑됨</span></span></div>'
+        f'<div style="display:flex;align-items:center;gap:.6rem;margin:.35rem 0;">'
+        f'<span class="muted" style="width:8.5em;flex-shrink:0;">{label}</span>'
+        f'<b>{value}</b> <span class="badge badge-good">매핑됨</span></div>'
     )
 
 
