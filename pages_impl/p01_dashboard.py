@@ -53,7 +53,8 @@ def render() -> None:
         key="dash_slot",
     )
     st.caption(
-        "실제 = 2024년 합성 실시간 입력 샘플(SYNTHETIC_119_SIMULATOR) · 예측 = 2019-2022 학습 / 2023 테스트 LightGBM Poisson 모델"
+        "실제·예측 모두 2024년 합성 실시간 입력 샘플(SYNTHETIC_119_SIMULATOR) 기반 · "
+        "예측 = 그 시점까지 누적된 데이터로 계산한 최근 7일 이동평균 + 동일 요일·시간대 평균"
     )
 
     series = dl.national_day_series(month_day)
