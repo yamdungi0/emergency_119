@@ -44,11 +44,10 @@ CATEGORICAL = {
 
 NAV_ITEMS = [
     ("dashboard", "01", "상황판"),
-    ("intake", "02", "접수"),
-    ("card", "03", "상담카드"),
-    ("hospital", "04", "기관연계"),
-    ("transport", "05", "이송결정"),
-    ("admin", "06", "검증"),
+    ("intake", "02", "AI 보조패널"),
+    ("card", "03", "대응카드"),
+    ("hospital", "04", "병원연계"),
+    ("admin", "05", "관리자"),
 ]
 
 FONT_STACK = "'Noto Sans KR', -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif"

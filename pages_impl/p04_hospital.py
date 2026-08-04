@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import math
+from datetime import datetime, timedelta
 
 import plotly.graph_objects as go
 import streamlit as st
@@ -12,26 +12,23 @@ PATIENT = {"name": "환자 현재 위치", "region": "서울 관악구 신림동
 # 샘플 응급의료기관 후보 — 실서비스에서는 국립중앙의료원 응급의료기관 정보 API로 대체됩니다.
 HOSPITALS = [
     {
-        "name": "A 지역응급의료센터", "tier": "지역응급의료센터", "lat": 37.5013, "lon": 126.9433,
+        "code": "A", "name": "A 지역응급의료센터", "tier": "지역응급의료센터", "lat": 37.5013, "lon": 126.9433,
         "eta_min": 14, "er_beds": 12, "icu_beds": 2, "ventilator": True, "drug_icu": True,
         "updated_min": 6,
     },
     {
-        "name": "B 권역응급의료센터", "tier": "권역응급의료센터", "lat": 37.4563, "lon": 126.8952,
+        "code": "B", "name": "B 권역응급의료센터", "tier": "권역응급의료센터", "lat": 37.4563, "lon": 126.8952,
         "eta_min": 21, "er_beds": 6, "icu_beds": 1, "ventilator": True, "drug_icu": True,
         "updated_min": 3,
     },
     {
-        "name": "C 병원", "tier": "지역응급의료기관", "lat": 37.4785, "lon": 126.9612,
+        "code": "C", "name": "C 응급의료기관", "tier": "지역응급의료기관", "lat": 37.4785, "lon": 126.9612,
         "eta_min": 9, "er_beds": 4, "icu_beds": 0, "ventilator": False, "drug_icu": False,
         "updated_min": 7,
     },
 ]
 
-SEG_COLORS = [
-    theme.CATEGORICAL["aqua"], theme.CATEGORICAL["blue"],
-    theme.CATEGORICAL["violet"], theme.CATEGORICAL["yellow"], theme.TEXT_MUTED,
-]
+STAGES = ["API상 후보", "전화 확인 중", "수용 확인", "최종 이송 결정"]
 
 
 def score_hospital(h: dict, require_icu: bool, require_vent: bool) -> dict:
@@ -56,93 +53,168 @@ def score_hospital(h: dict, require_icu: bool, require_vent: bool) -> dict:
     }
     total = sum(w * v for w, v in weighted.values())
     hard_pass = not ((require_icu and h["icu_beds"] <= 0) or (require_vent and not h["ventilator"]))
-    return {"total": total, "parts": weighted, "hard_pass": hard_pass}
+    if not hard_pass:
+        verdict = "부적합"
+    elif total >= 0.75:
+        verdict = "적합"
+    else:
+        verdict = "조건부 적합"
+    return {"total": total, "parts": weighted, "hard_pass": hard_pass, "verdict": verdict}
+
+
+def _value(x, fallback="확인 중") -> str:
+    if x is None or x == [] or x == "":
+        return fallback
+    if isinstance(x, list):
+        return ", ".join(str(v) for v in x) or fallback
+    return str(x)
+
+
+def build_handoff(facts, hospital: str, eta: int) -> str:
+    age_sex = " ".join(v for v in [_value(facts.age, ""), _value(facts.sex, "")] if v) or "연령·성별 확인 중"
+    conscious = "무반응(V/P/U 확인 필요)" if facts.conscious is False else ("정상" if facts.conscious else "확인 중")
+    breathing = "이상 의심 — 호흡수 확인 중" if facts.normal_breathing is False else ("정상" if facts.normal_breathing else "확인 중")
+
+    lines = [
+        f"{age_sex}, {_value(facts.suspected_substance, '약물')} 관련 응급 의심입니다.",
+        f"{_value(facts.exposure_time, '노출/복용 시각')} 노출된 것으로 추정되며 "
+        f"복용량은 {_value(facts.amount)}입니다.",
+        f"현재 의식 {conscious}, 호흡 {breathing}입니다.",
+        f"동시복용·자살시도 가능성은 {_value(facts.intent, '확인 중')} 상태이며, "
+        f"관련 증상: {_value(facts.symptoms, '보고된 추가 증상 없음')}.",
+        f"예상 도착시간은 {eta}분입니다.",
+        "중환자 대응 및 수용 가능 여부 확인 요청드립니다.",
+    ]
+    return " ".join(lines)
 
 
 def render() -> None:
     facts = getattr(st.session_state.get("intake_result"), "facts", None)
-    require_icu = bool(facts and facts.conscious is False)
-    require_vent = bool(facts and facts.normal_breathing is False)
+    if facts is None:
+        with st.container(border=True):
+            st.info("먼저 02 AI 보조패널에서 사건을 확인하세요.")
+        return
 
-    c1, c2 = st.columns(2)
-    require_icu = c1.checkbox("필수조건: 중환자실 필요 (의식저하)", value=require_icu)
-    require_vent = c2.checkbox("필수조건: 인공호흡기 필요 (호흡이상)", value=require_vent)
+    require_icu = bool(facts.conscious is False)
+    require_vent = bool(facts.normal_breathing is False)
 
-    scored = []
-    for h in HOSPITALS:
-        s = score_hospital(h, require_icu, require_vent)
-        scored.append({**h, **s})
+    scored = [{**h, **score_hospital(h, require_icu, require_vent)} for h in HOSPITALS]
     passed = sorted([h for h in scored if h["hard_pass"]], key=lambda x: -x["total"])
-    failed = [h for h in scored if not h["hard_pass"]]
+    top = passed[0] if passed else None
 
-    st.caption(f"필수조건 필터 적용 · 후보 {len(passed)}곳 (부적합 {len(failed)}곳 제외)")
+    st.session_state.setdefault("transport_stage", 0)
+    stage = st.session_state["transport_stage"]
+    hospital = st.session_state.get("selected_hospital", top["name"] if top else None)
+    eta = st.session_state.get("selected_eta", top["eta_min"] if top else 0)
 
-    map_col, info_col = st.columns([1.1, 1], gap="large")
+    with st.container(border=True):
+        age_sex = " ".join(v for v in [_value(facts.age, ""), _value(facts.sex, "")] if v) or "확인 중"
+        p1, p2, p3, p4, p5 = st.columns([1, 1.6, 0.9, 0.9, 1.7])
+        p1.markdown(f'<div class="muted">환자 정보</div><div style="font-weight:700;">{age_sex}</div>', unsafe_allow_html=True)
+        p2.markdown(f'<div class="muted">의심 상황</div><div style="font-weight:700;">{_value(facts.suspected_substance, "확인 중")} 관련 응급</div>', unsafe_allow_html=True)
+        p3.markdown(f'<div class="muted">의식</div><div style="font-weight:700;">{"저하 의심" if facts.conscious is False else "정상" if facts.conscious else "확인 중"}</div>', unsafe_allow_html=True)
+        p4.markdown(f'<div class="muted">호흡</div><div style="font-weight:700;">{"이상 의심" if facts.normal_breathing is False else "정상" if facts.normal_breathing else "확인 중"}</div>', unsafe_allow_html=True)
+        p5.markdown(
+            f'<div class="muted">&nbsp;</div><span class="badge" style="background:{theme.CATEGORICAL["violet"]};">병원 추천이 아닌 적합성 설명과 전달문 보조</span>',
+            unsafe_allow_html=True,
+        )
 
-    with map_col, st.container(border=True):
+    with st.container(border=True):
+        cols = st.columns(len(STAGES))
+        for i, (col, label) in enumerate(zip(cols, STAGES)):
+            color = theme.CATEGORICAL["blue"] if i <= stage else theme.TEXT_MUTED
+            col.markdown(
+                f'<div style="text-align:center;"><div style="color:{color};font-weight:800;">{i+1}. {label}</div>'
+                f'<div style="height:4px;background:{color};border-radius:2px;margin-top:.4rem;"></div></div>',
+                unsafe_allow_html=True,
+            )
+        st.caption("API상 가용병상이 있어도 실제 수용이 확정된 것은 아닙니다. 각 단계는 전화 확인 결과로만 넘어갑니다.")
+
+    col_l, col_m, col_r = st.columns([1.1, 1.3, 1], gap="small")
+
+    with col_l, st.container(border=True):
+        st.markdown("**① 후보 의료기관**")
         fig = go.Figure()
         fig.add_trace(go.Scattermapbox(
             lat=[PATIENT["lat"]], lon=[PATIENT["lon"]], mode="markers+text",
-            marker=dict(size=16, color=theme.STATUS["critical"]),
-            text=["환자"], textposition="top center", name="환자 위치",
+            marker=dict(size=15, color=theme.STATUS["critical"]),
+            text=["★"], textposition="middle center", name="환자 위치",
         ))
-        for i, h in enumerate(passed, 1):
+        verdict_color = {"적합": theme.STATUS["good"], "조건부 적합": theme.STATUS["warning"], "부적합": theme.STATUS["critical"]}
+        for h in scored:
             fig.add_trace(go.Scattermapbox(
                 lat=[h["lat"]], lon=[h["lon"]], mode="markers+text",
-                marker=dict(size=14, color=theme.CATEGORICAL["blue"] if i == 1 else theme.CATEGORICAL["aqua"]),
-                text=[f"{i}. {h['name']}"], textposition="top center", name=h["name"],
-            ))
-        for h in failed:
-            fig.add_trace(go.Scattermapbox(
-                lat=[h["lat"]], lon=[h["lon"]], mode="markers+text",
-                marker=dict(size=12, color=theme.TEXT_MUTED),
-                text=[f"{h['name']} (제외)"], textposition="top center", name=h["name"],
+                marker=dict(size=15, color=verdict_color[h["verdict"]]),
+                text=[f"{h['code']} {h['eta_min']}분"], textposition="top center", name=h["name"],
             ))
         fig.update_layout(
-            mapbox=dict(style="carto-positron", center=dict(lat=PATIENT["lat"], lon=PATIENT["lon"]), zoom=11.5),
-            paper_bgcolor=theme.CARD_BG, margin=dict(l=0, r=0, t=0, b=0), height=420, showlegend=False,
+            mapbox=dict(
+                style="https://basemaps.cartocdn.com/gl/positron-nolabels-gl-style/style.json",
+                center=dict(lat=PATIENT["lat"], lon=PATIENT["lon"]), zoom=11.3,
+            ),
+            paper_bgcolor=theme.CARD_BG, margin=dict(l=0, r=0, t=0, b=0), height=260, showlegend=False,
         )
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-        st.caption(f"환자 위치: {PATIENT['region']} · 예상 이동시간은 직선거리 기준 추정값(샘플 데이터)")
 
-    with info_col:
-        if not passed:
-            with st.container(border=True):
-                st.error("필수조건을 충족하는 후보가 없습니다. 조건을 다시 확인하세요.")
-        else:
-            top = passed[0]
-            with st.container(border=True):
-                st.markdown(theme.status_badge("관심", "1순위"), unsafe_allow_html=True)
-                st.markdown(f"### {top['name']}")
-                st.caption(f"{top['tier']} · 예상 이동 {top['eta_min']}분")
-                m1, m2 = st.columns(2)
-                m1.metric("응급실 병상", f"{top['er_beds']}")
-                m2.metric("중환자실", f"{top['icu_beds']}")
-                m1.metric("인공호흡기", "가능" if top["ventilator"] else "불가")
-                m2.metric("약물중환자(hv7)", "확인" if top["drug_icu"] else "미확인")
+        for h in scored:
+            badge_kind = {"적합": "good", "조건부 적합": "warning", "부적합": "critical"}[h["verdict"]]
+            st.markdown(
+                f'<div style="display:flex;justify-content:space-between;align-items:center;margin:.4rem 0;">'
+                f'<span><b>{h["name"]}</b> <span class="muted">{h["eta_min"]}분</span></span>'
+                f'<span class="badge badge-{badge_kind}">{h["verdict"]}</span></div>',
+                unsafe_allow_html=True,
+            )
+        st.caption("이동 시간은 실시간 교통 상황에 따라 변동될 수 있습니다(샘플 데이터).")
 
-                st.markdown(f"**추천 점수 {top['total']:.2f}**")
-                seg_html = "".join(
-                    f'<div style="flex:{w};background:{SEG_COLORS[i]};height:10px;"></div>'
-                    for i, (label, (w, v)) in enumerate(top["parts"].items())
-                )
-                st.markdown(f'<div style="display:flex;border-radius:6px;overflow:hidden;margin:.3rem 0;">{seg_html}</div>', unsafe_allow_html=True)
-                legend = " · ".join(f"{label} {v:.2f}" for label, (w, v) in top["parts"].items())
-                st.markdown(f'<div class="muted">{legend}</div>', unsafe_allow_html=True)
+    with col_m, st.container(border=True):
+        st.markdown("**② 적합성 판단 근거**")
+        rows = ["임상적합성", "자원가용성", "이동접근성", "정보최신성", "기관수준"]
+        header = "".join(f"<th style='padding:.3rem .5rem;text-align:center;'>{h['code']}</th>" for h in scored)
+        html = [f"<table style='width:100%;border-collapse:collapse;font-size:.82rem;'>",
+                f"<tr><th style='text-align:left;padding:.3rem .5rem;'>평가 항목</th>{header}</tr>"]
+        for label in rows:
+            cells = "".join(
+                f"<td style='padding:.3rem .5rem;text-align:center;'>{h['parts'][label][1]:.2f}</td>" for h in scored
+            )
+            html.append(f"<tr style='border-top:1px solid {theme.CARD_BORDER};'><td style='padding:.3rem .5rem;color:{theme.TEXT_SECONDARY};'>{label}</td>{cells}</tr>")
+        verdict_cells = "".join(
+            f"<td style='padding:.3rem .5rem;text-align:center;'>{theme.status_badge({'적합':'good','조건부 적합':'warning','부적합':'critical'}[h['verdict']], h['verdict'])}</td>"
+            for h in scored
+        )
+        html.append(f"<tr style='border-top:2px solid {theme.CARD_BORDER};'><td style='padding:.3rem .5rem;font-weight:700;'>종합 판정</td>{verdict_cells}</tr>")
+        html.append("</table>")
+        st.markdown("".join(html), unsafe_allow_html=True)
+        st.caption("※ 본 판단은 현재 확보된 정보 기반 보조 판단이며, 실제 수용 가능 여부는 전화 확인을 통해 최종 결정됩니다.")
 
-                st.button(
-                    "이 병원으로 이송 결정 진행 →",
-                    type="primary",
-                    use_container_width=True,
-                    on_click=lambda: st.session_state.update(page="transport", selected_hospital=top["name"], selected_eta=top["eta_min"]),
-                )
+    with col_r:
+        with st.container(border=True):
+            st.markdown("**③ 병원 전달문 자동생성**")
+            if hospital:
+                handoff = build_handoff(facts, hospital, eta)
+                st.code(handoff, language=None)
+                st.caption(f"수신 병원: {hospital} · 생성 시각 {datetime.now().strftime('%H:%M')}")
+            else:
+                st.caption("적합 후보가 없어 전달문을 생성할 수 없습니다.")
 
         with st.container(border=True):
-            st.markdown("**후보 비교**")
-            for i, h in enumerate(scored, 1):
-                status = "제외" if not h["hard_pass"] else ("1순위" if h is passed[0] else f"{passed.index(h)+1}순위")
-                st.markdown(
-                    f"**{h['name']}** — {h['eta_min']}분 · 병상 {h['er_beds']} · "
-                    f"{'적합' if h['hard_pass'] else '부적합'} · {status} · 점수 {h['total']:.2f}"
-                )
-            st.caption("여기서 '순위'는 자동 이송 결정이 아니라 연락 우선순위입니다. 실제 수용 여부는 전화로 확인합니다.")
+            st.markdown("**연락 기록**")
+            called_at = st.session_state.get("call_started_at")
+            st.markdown(f"**{hospital or '-'}** — 연결시각 {called_at.strftime('%H:%M') if called_at else '-'} · 결과 {STAGES[stage]}")
+
+        b1, b2, b3 = st.columns(3)
+        if b1.button("수용 요청", type="primary", use_container_width=True, disabled=not top or stage != 0):
+            st.session_state.update(transport_stage=1, selected_hospital=top["name"], selected_eta=top["eta_min"], call_started_at=datetime.now())
+            st.rerun()
+        if b2.button("수용 확인됨", use_container_width=True, disabled=stage != 1):
+            st.session_state["transport_stage"] = 2
+            st.rerun()
+        if b3.button("최종 병원 선택", use_container_width=True, disabled=stage != 2):
+            st.session_state.update(transport_stage=3, departed_at=datetime.now())
+            st.rerun()
+
+        if stage == 3:
+            departed = st.session_state.get("departed_at", datetime.now())
+            arrival = departed + timedelta(minutes=eta)
+            with st.container(border=True):
+                st.success(f"이송 결정 확정 — 출발 {departed.strftime('%H:%M')} · 예상 도착 {arrival.strftime('%H:%M')}")
+                st.caption("구급활동 기록 초안이 자동 저장됩니다.")
