@@ -107,6 +107,25 @@ def render() -> None:
             _kpi(st, "유형 구성", "데이터 없음")
         _kpi(st, "이상징후 발생지역", f"{len(alert_regions)}곳", "평시 대비 1.5배 이상")
 
+        with st.container(border=True):
+            _title("유형 분포")
+            if not mix.empty:
+                ordered = mix.set_index("main_symptom").reindex(CAT_ORDER + [
+                    c for c in mix["main_symptom"] if c not in CAT_ORDER
+                ]).dropna(subset=["count"]).reset_index()
+                colors = (CAT_COLORS + [theme.TEXT_MUTED] * len(ordered))[: len(ordered)]
+                fig2 = go.Figure(go.Pie(
+                    labels=ordered["label"], values=ordered["count"], hole=0.55,
+                    marker=dict(colors=colors, line=dict(color=theme.CARD_BG, width=2)),
+                    textinfo="percent", textfont=dict(size=9),
+                ))
+                layout_defaults = theme.plotly_layout_defaults()
+                layout_defaults["margin"] = dict(l=4, r=4, t=4, b=4)
+                fig2.update_layout(**layout_defaults, height=170, showlegend=False)
+                st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
+            else:
+                st.caption("표시할 데이터가 없습니다.")
+
     with chart_box:
         _title("시간대별 신고량 — 실제 대 예측 (전국 합계)")
         fig = go.Figure()
@@ -216,20 +235,3 @@ def render() -> None:
             else:
                 st.markdown(theme.status_badge("관심", "이상징후 없음"), unsafe_allow_html=True)
                 st.caption("모든 지역이 평시 대비 1.5배 미만입니다.")
-
-        with st.container(border=True):
-            _title("유형 분포 (현재까지)")
-            if not mix.empty:
-                ordered = mix.set_index("main_symptom").reindex(CAT_ORDER + [
-                    c for c in mix["main_symptom"] if c not in CAT_ORDER
-                ]).dropna(subset=["count"]).reset_index()
-                colors = (CAT_COLORS + [theme.TEXT_MUTED] * len(ordered))[: len(ordered)]
-                fig2 = go.Figure(go.Pie(
-                    labels=ordered["label"], values=ordered["count"], hole=0.55,
-                    marker=dict(colors=colors, line=dict(color=theme.CARD_BG, width=2)),
-                    textinfo="percent",
-                ))
-                fig2.update_layout(**theme.plotly_layout_defaults(), height=260, showlegend=True)
-                st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
-            else:
-                st.caption("표시할 데이터가 없습니다.")
