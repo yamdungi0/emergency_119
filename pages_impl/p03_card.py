@@ -58,9 +58,8 @@ DEFAULT_CARD = {
 
 def render() -> None:
     if "intake_result" not in st.session_state:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.info("먼저 02 접수 화면에서 신고 통화를 구조화하세요.")
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st.info("먼저 02 접수 화면에서 신고 통화를 구조화하세요.")
         return
 
     result = st.session_state["intake_result"]
@@ -69,8 +68,7 @@ def render() -> None:
 
     left, right = st.columns([1.3, 1], gap="large")
 
-    with left:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
+    with left, st.container(border=True):
         badge_label = f"{card['severity']} 경로"
         st.markdown(theme.status_badge(card["severity"], badge_label), unsafe_allow_html=True)
         st.markdown(f"### {card['title']}")
@@ -98,7 +96,6 @@ def render() -> None:
             "근거 · 119 구급대원 현장응급처치 표준지침 — 중독, 환자평가 필수항목 및 이송병원 선정지침. "
             "카드 문장은 사전 검토·승인된 지침 문장이며, 생성형 AI는 순서 정리와 요약에만 사용됩니다."
         )
-        st.markdown("</div>", unsafe_allow_html=True)
 
     with right:
         conditions = {
@@ -109,38 +106,35 @@ def render() -> None:
             "이송기관 선정이 어려움": False,
         }
         met = sum(conditions.values())
-        st.markdown('<div class="card" style="border-color:' + theme.STATUS["critical"] + '66;">', unsafe_allow_html=True)
-        st.markdown(f"**의료지도 요청 조건** · {met}개 충족")
-        for label, ok in conditions.items():
-            dot = theme.STATUS["critical"] if ok else theme.TEXT_MUTED
-            weight = "700" if ok else "400"
-            st.markdown(
-                f'<div style="margin:.25rem 0;"><span style="color:{dot};">●</span> '
-                f'<span style="font-weight:{weight};">{label}</span> — {"충족" if ok else "미확인" if label not in ("혈압·맥박 이상","이송기관 선정이 어려움") else "없음/해당없음"}</div>',
-                unsafe_allow_html=True,
+        with st.container(border=True):
+            st.markdown(f"**의료지도 요청 조건** · {met}개 충족")
+            for label, ok in conditions.items():
+                dot = theme.STATUS["critical"] if ok else theme.TEXT_MUTED
+                weight = "700" if ok else "400"
+                st.markdown(
+                    f'<div style="margin:.25rem 0;"><span style="color:{dot};">●</span> '
+                    f'<span style="font-weight:{weight};">{label}</span> — {"충족" if ok else "미확인" if label not in ("혈압·맥박 이상","이송기관 선정이 어려움") else "없음/해당없음"}</div>',
+                    unsafe_allow_html=True,
+                )
+            if met >= 2:
+                st.button("의료지도 요청 · 직통 연결", type="primary", use_container_width=True)
+
+        with st.container(border=True):
+            st.markdown("**이송기관 요구조건**")
+            st.markdown(f'<div class="muted">기관 수준</div><div style="font-weight:700;">{card["tier"]}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="muted">중환자실</div><div style="font-weight:700;">{card["icu"]}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="muted">인공호흡기</div><div style="font-weight:700;">{card["vent"]}</div>', unsafe_allow_html=True)
+            psych = "자살시도 확인 후" if f.intent == "자살/자해" else "확인 필요"
+            st.markdown(f'<div class="muted">정신건강의학과 연계</div><div style="font-weight:700;">{psych}</div>', unsafe_allow_html=True)
+            st.button(
+                "조건에 맞는 응급의료기관 찾기 →",
+                type="primary",
+                use_container_width=True,
+                on_click=lambda: st.session_state.update(page="hospital"),
             )
-        if met >= 2:
-            st.button("의료지도 요청 · 직통 연결", type="primary", use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
 
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown("**이송기관 요구조건**")
-        st.markdown(f'<div class="muted">기관 수준</div><div style="font-weight:700;">{card["tier"]}</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="muted">중환자실</div><div style="font-weight:700;">{card["icu"]}</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="muted">인공호흡기</div><div style="font-weight:700;">{card["vent"]}</div>', unsafe_allow_html=True)
-        psych = "자살시도 확인 후" if f.intent == "자살/자해" else "확인 필요"
-        st.markdown(f'<div class="muted">정신건강의학과 연계</div><div style="font-weight:700;">{psych}</div>', unsafe_allow_html=True)
-        st.button(
-            "조건에 맞는 응급의료기관 찾기 →",
-            type="primary",
-            use_container_width=True,
-            on_click=lambda: st.session_state.update(page="hospital"),
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.caption(
-            "최종 판단: 이 카드는 확인 순서를 제시할 뿐이며, 임상 판단과 처치 결정은 "
-            "구급대원과 의료지도의사가 수행합니다."
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st.caption(
+                "최종 판단: 이 카드는 확인 순서를 제시할 뿐이며, 임상 판단과 처치 결정은 "
+                "구급대원과 의료지도의사가 수행합니다."
+            )

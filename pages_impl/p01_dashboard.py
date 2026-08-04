@@ -70,116 +70,110 @@ def render() -> None:
     left, right = st.columns([1.5, 1])
 
     with left:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown("**시간대별 신고량 — 실제 대 예측 (전국 합계)**")
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=[f"{h:02d}시" for h in dl.SLOTS], y=series["prediction"],
-            name="예측 (2023 백테스트)", mode="lines+markers",
-            line=dict(color=theme.CATEGORICAL["blue"], dash="dash", width=2),
-            marker=dict(size=6),
-        ))
-        actual_masked = series["actual"].where(series["slot"] <= up_to_slot)
-        fig.add_trace(go.Scatter(
-            x=[f"{h:02d}시" for h in dl.SLOTS], y=actual_masked,
-            name="실제 (2024 합성 실시간)", mode="lines+markers",
-            line=dict(color=theme.STATUS["critical"], width=2.5),
-            marker=dict(size=7),
-        ))
-        fig.add_vline(x=dl.SLOTS.index(up_to_slot), line_width=1, line_dash="dot",
-                       line_color=theme.TEXT_MUTED, annotation_text=f"현재 {up_to_slot:02d}:00",
-                       annotation_font_color=theme.TEXT_SECONDARY)
-        fig.update_layout(**theme.plotly_layout_defaults(), height=340)
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-        st.markdown(
-            '<div class="muted">실시간 신고 데이터가 아직 없어, 2023년 백테스트 예측과 2024년 합성 샘플로 흐름을 시연합니다. '
-            '실제 신고 데이터가 누적되면 예측선은 그 데이터로 재학습·갱신됩니다.</div>',
-            unsafe_allow_html=True,
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown("**시도별 위험도 · 현재 누적 기준**")
-        cols = st.columns(6)
-        badge_color = {
-            "관심": theme.STATUS["good"], "주의": theme.STATUS["warning"],
-            "경계": theme.STATUS["serious"], "심각": theme.STATUS["critical"],
-        }
-        for i, row in snapshot.sort_values("region_short").reset_index().iterrows():
-            col = cols[i % 6]
-            color = badge_color[row["risk"]]
-            col.markdown(
-                f"""
-                <div class="region-tile" style="border-color:{color}66;background:{color}14;">
-                    <div class="region-name">{row['region_short']}</div>
-                    <div class="region-count" style="color:{color}">{row['actual_so_far']}</div>
-                    <div class="muted">{row['risk']}</div>
-                </div>
-                """,
+        with st.container(border=True):
+            st.markdown("**시간대별 신고량 — 실제 대 예측 (전국 합계)**")
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=[f"{h:02d}시" for h in dl.SLOTS], y=series["prediction"],
+                name="예측 (2023 백테스트)", mode="lines+markers",
+                line=dict(color=theme.CATEGORICAL["blue"], dash="dash", width=2),
+                marker=dict(size=6),
+            ))
+            actual_masked = series["actual"].where(series["slot"] <= up_to_slot)
+            fig.add_trace(go.Scatter(
+                x=[f"{h:02d}시" for h in dl.SLOTS], y=actual_masked,
+                name="실제 (2024 합성 실시간)", mode="lines+markers",
+                line=dict(color=theme.STATUS["critical"], width=2.5),
+                marker=dict(size=7),
+            ))
+            fig.add_vline(x=dl.SLOTS.index(up_to_slot), line_width=1, line_dash="dot",
+                           line_color=theme.TEXT_MUTED, annotation_text=f"현재 {up_to_slot:02d}:00",
+                           annotation_font_color=theme.TEXT_SECONDARY)
+            fig.update_layout(**theme.plotly_layout_defaults(), height=340)
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+            st.markdown(
+                '<div class="muted">실시간 신고 데이터가 아직 없어, 2023년 백테스트 예측과 2024년 합성 샘플로 흐름을 시연합니다. '
+                '실제 신고 데이터가 누적되면 예측선은 그 데이터로 재학습·갱신됩니다.</div>',
                 unsafe_allow_html=True,
             )
-        st.markdown(
-            '<div class="muted" style="margin-top:.6rem;">위험도 = 현재까지 실제 신고 ÷ 동일 시점까지의 평시(모델) 예측 누적</div>',
-            unsafe_allow_html=True,
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
+
+        with st.container(border=True):
+            st.markdown("**시도별 위험도 · 현재 누적 기준**")
+            cols = st.columns(6)
+            badge_color = {
+                "관심": theme.STATUS["good"], "주의": theme.STATUS["warning"],
+                "경계": theme.STATUS["serious"], "심각": theme.STATUS["critical"],
+            }
+            for i, row in snapshot.sort_values("region_short").reset_index().iterrows():
+                col = cols[i % 6]
+                color = badge_color[row["risk"]]
+                col.markdown(
+                    f"""
+                    <div class="region-tile" style="border-color:{color}66;background:{color}14;">
+                        <div class="region-name">{row['region_short']}</div>
+                        <div class="region-count" style="color:{color}">{row['actual_so_far']}</div>
+                        <div class="muted">{row['risk']}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            st.markdown(
+                '<div class="muted" style="margin-top:.6rem;">위험도 = 현재까지 실제 신고 ÷ 동일 시점까지의 평시(모델) 예측 누적</div>',
+                unsafe_allow_html=True,
+            )
 
     with right:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
+        with st.container(border=True):
+            if len(alert_regions):
+                top = alert_regions.iloc[0]
+                badge_label = f"이상징후 · {top['risk']}"
+                st.markdown(theme.status_badge(top["risk"], badge_label), unsafe_allow_html=True)
+                st.markdown(f"**{top['region_short']} · 평시 대비 {top['ratio_vs_baseline']:.1f}배**")
+                st.caption(f"현재까지 실제 {int(top['actual_so_far'])}건 · 동시점 예측 {top['predicted_so_far']:.1f}건")
+            else:
+                st.markdown(theme.status_badge("관심", "이상징후 없음"), unsafe_allow_html=True)
+                st.caption("모든 지역이 평시 대비 1.5배 미만입니다.")
+
+        with st.container(border=True):
+            st.markdown("**AI 교대 브리핑**")
+            if len(alert_regions):
+                top = alert_regions.iloc[0]
+                brief = (
+                    f"{month_day} {up_to_slot:02d}시 기준, 약물 관련 신고는 전국적으로 "
+                    f"모델 예측 대비 {delta_pct:+.0f}% 수준입니다. {top['region_short']} 지역이 "
+                    f"평시 대비 {top['ratio_vs_baseline']:.1f}배로 가장 두드러지며, "
+                    f"주요 유형은 {top_type['label'] if top_type is not None else '미상'}입니다."
+                )
+            else:
+                brief = (
+                    f"{month_day} {up_to_slot:02d}시 기준, 약물 관련 신고는 평시 수준입니다. "
+                    f"이상징후가 감지된 지역은 없습니다."
+                )
+            st.info(brief)
+            st.caption("예측·탐지 결과만으로 생성 · 입력값에 없는 내용은 작성하지 않음")
+
+        with st.container(border=True):
+            st.markdown("**유형 분포 (현재까지)**")
+            if not mix.empty:
+                ordered = mix.set_index("main_symptom").reindex(CAT_ORDER + [
+                    c for c in mix["main_symptom"] if c not in CAT_ORDER
+                ]).dropna(subset=["count"]).reset_index()
+                colors = (CAT_COLORS + [theme.TEXT_MUTED] * len(ordered))[: len(ordered)]
+                fig2 = go.Figure(go.Pie(
+                    labels=ordered["label"], values=ordered["count"], hole=0.55,
+                    marker=dict(colors=colors, line=dict(color=theme.CARD_BG, width=2)),
+                    textinfo="percent",
+                ))
+                fig2.update_layout(**theme.plotly_layout_defaults(), height=280, showlegend=True)
+                st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
+            else:
+                st.caption("표시할 데이터가 없습니다.")
+
+    with st.container(border=True):
+        st.markdown("**상위 5개 주의지역**")
         if len(alert_regions):
-            top = alert_regions.iloc[0]
-            badge_label = f"이상징후 · {top['risk']}"
-            st.markdown(theme.status_badge(top["risk"], badge_label), unsafe_allow_html=True)
-            st.markdown(f"**{top['region_short']} · 평시 대비 {top['ratio_vs_baseline']:.1f}배**")
-            st.caption(f"현재까지 실제 {int(top['actual_so_far'])}건 · 동시점 예측 {top['predicted_so_far']:.1f}건")
+            show = alert_regions.head(5)[["region_short", "actual_so_far", "predicted_so_far", "ratio_vs_baseline", "risk"]]
+            show.columns = ["지역", "실제 누적", "동시점 예측", "평시 대비 배수", "위험도"]
+            st.dataframe(show, hide_index=True, use_container_width=True)
         else:
-            st.markdown(theme.status_badge("관심", "이상징후 없음"), unsafe_allow_html=True)
-            st.caption("모든 지역이 평시 대비 1.5배 미만입니다.")
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown("**AI 교대 브리핑**")
-        if len(alert_regions):
-            top = alert_regions.iloc[0]
-            brief = (
-                f"{month_day} {up_to_slot:02d}시 기준, 약물 관련 신고는 전국적으로 "
-                f"모델 예측 대비 {delta_pct:+.0f}% 수준입니다. {top['region_short']} 지역이 "
-                f"평시 대비 {top['ratio_vs_baseline']:.1f}배로 가장 두드러지며, "
-                f"주요 유형은 {top_type['label'] if top_type is not None else '미상'}입니다."
-            )
-        else:
-            brief = (
-                f"{month_day} {up_to_slot:02d}시 기준, 약물 관련 신고는 평시 수준입니다. "
-                f"이상징후가 감지된 지역은 없습니다."
-            )
-        st.info(brief)
-        st.caption("예측·탐지 결과만으로 생성 · 입력값에 없는 내용은 작성하지 않음")
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown("**유형 분포 (현재까지)**")
-        if not mix.empty:
-            ordered = mix.set_index("main_symptom").reindex(CAT_ORDER + [
-                c for c in mix["main_symptom"] if c not in CAT_ORDER
-            ]).dropna(subset=["count"]).reset_index()
-            colors = (CAT_COLORS + [theme.TEXT_MUTED] * len(ordered))[: len(ordered)]
-            fig2 = go.Figure(go.Pie(
-                labels=ordered["label"], values=ordered["count"], hole=0.55,
-                marker=dict(colors=colors, line=dict(color=theme.CARD_BG, width=2)),
-                textinfo="percent",
-            ))
-            fig2.update_layout(**theme.plotly_layout_defaults(), height=280, showlegend=True)
-            st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
-        else:
-            st.caption("표시할 데이터가 없습니다.")
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("**상위 5개 주의지역**")
-    if len(alert_regions):
-        show = alert_regions.head(5)[["region_short", "actual_so_far", "predicted_so_far", "ratio_vs_baseline", "risk"]]
-        show.columns = ["지역", "실제 누적", "동시점 예측", "평시 대비 배수", "위험도"]
-        st.dataframe(show, hide_index=True, use_container_width=True)
-    else:
-        st.caption("현재 주의가 필요한 지역이 없습니다.")
-    st.markdown("</div>", unsafe_allow_html=True)
+            st.caption("현재 주의가 필요한 지역이 없습니다.")

@@ -95,15 +95,14 @@ def render() -> None:
     left, right = st.columns([1, 1.1], gap="large")
 
     with left:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown("**신고 통화 · 텍스트 입력**")
-        transcript = st.text_area(
-            "통화 내용 (실제 서비스에서는 실시간 음성전사 결과가 들어옵니다)",
-            key="intake_transcript",
-            height=140,
-        )
-        run = st.button("구조화 분석 실행", type="primary", use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown("**신고 통화 · 텍스트 입력**")
+            transcript = st.text_area(
+                "통화 내용 (실제 서비스에서는 실시간 음성전사 결과가 들어옵니다)",
+                key="intake_transcript",
+                height=140,
+            )
+            run = st.button("구조화 분석 실행", type="primary", use_container_width=True)
 
         if run or "intake_result" in st.session_state:
             if run:
@@ -119,21 +118,19 @@ def render() -> None:
             result = st.session_state["intake_result"]
             matches = st.session_state.get("intake_matches", [])
 
-            st.markdown('<div class="card">', unsafe_allow_html=True)
-            st.markdown("**다음에 물어볼 질문 · 표준지침 기준**")
-            for q in result.next_questions[:6]:
-                st.checkbox(q, key=f"q_{hash(q)}", value=False)
-            if matches:
-                st.markdown("**약물명 사전 매칭**")
-                for m in matches[:3]:
-                    st.caption(f"{m['한글명']} ({m['영문명']}) · {m['분류/구분']}")
-            st.markdown("</div>", unsafe_allow_html=True)
+            with st.container(border=True):
+                st.markdown("**다음에 물어볼 질문 · 표준지침 기준**")
+                for q in result.next_questions[:6]:
+                    st.checkbox(q, key=f"q_{hash(q)}", value=False)
+                if matches:
+                    st.markdown("**약물명 사전 매칭**")
+                    for m in matches[:3]:
+                        st.caption(f"{m['한글명']} ({m['영문명']}) · {m['분류/구분']}")
 
     with right:
         if "intake_result" not in st.session_state:
-            st.markdown('<div class="card">', unsafe_allow_html=True)
-            st.info("왼쪽에서 통화 내용을 입력하고 '구조화 분석 실행'을 누르세요.")
-            st.markdown("</div>", unsafe_allow_html=True)
+            with st.container(border=True):
+                st.info("왼쪽에서 통화 내용을 입력하고 '구조화 분석 실행'을 누르세요.")
             return
 
         result = st.session_state["intake_result"]
@@ -150,14 +147,13 @@ def render() -> None:
             )
 
         urgency_badge = {"RED": "심각", "ORANGE": "경계", "YELLOW": "주의", "UNKNOWN": "관심"}[result.urgency]
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown(
-            f'{theme.status_badge(urgency_badge, f"{result.urgency} · {result.category}")}',
-            unsafe_allow_html=True,
-        )
-        st.markdown(f"**추정 독성증후군:** {result.suspected_toxidrome}")
-        st.caption(result.dispatch_recommendation)
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown(
+                f'{theme.status_badge(urgency_badge, f"{result.urgency} · {result.category}")}',
+                unsafe_allow_html=True,
+            )
+            st.markdown(f"**추정 독성증후군:** {result.suspected_toxidrome}")
+            st.caption(result.dispatch_recommendation)
 
         def field(label: str, value) -> str:
             if value is None or value == [] or value == "":
@@ -167,29 +163,27 @@ def render() -> None:
             return f'<div class="muted">{label}</div><div style="font-weight:700;">{value}</div>'
 
         f = result.facts
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown("**AI 구조화 결과**")
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown(field("약물/물질", f.suspected_substance), unsafe_allow_html=True)
-            st.markdown(field("경로", f.route), unsafe_allow_html=True)
-            st.markdown(field("복용량", f.amount), unsafe_allow_html=True)
-            st.markdown(field("노출 시각", f.exposure_time), unsafe_allow_html=True)
-        with c2:
-            st.markdown(field("의식", "저하 의심" if f.conscious is False else ("정상" if f.conscious else None)), unsafe_allow_html=True)
-            st.markdown(field("정상호흡", "없음/저하 의심" if f.normal_breathing is False else ("정상" if f.normal_breathing else None)), unsafe_allow_html=True)
-            st.markdown(field("증상", f.symptoms), unsafe_allow_html=True)
-            st.markdown(field("현장 위험", f.scene_hazards), unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown("**AI 구조화 결과**")
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown(field("약물/물질", f.suspected_substance), unsafe_allow_html=True)
+                st.markdown(field("경로", f.route), unsafe_allow_html=True)
+                st.markdown(field("복용량", f.amount), unsafe_allow_html=True)
+                st.markdown(field("노출 시각", f.exposure_time), unsafe_allow_html=True)
+            with c2:
+                st.markdown(field("의식", "저하 의심" if f.conscious is False else ("정상" if f.conscious else None)), unsafe_allow_html=True)
+                st.markdown(field("정상호흡", "없음/저하 의심" if f.normal_breathing is False else ("정상" if f.normal_breathing else None)), unsafe_allow_html=True)
+                st.markdown(field("증상", f.symptoms), unsafe_allow_html=True)
+                st.markdown(field("현장 위험", f.scene_hazards), unsafe_allow_html=True)
 
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown("**지금 신고자에게 안내**")
-        for i, instr in enumerate(result.caller_instructions[:5], 1):
-            st.write(f"{i}. {instr}")
-        st.markdown("**금지·주의**")
-        for d in result.do_not:
-            st.write("• ", d)
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown("**지금 신고자에게 안내**")
+            for i, instr in enumerate(result.caller_instructions[:5], 1):
+                st.write(f"{i}. {instr}")
+            st.markdown("**금지·주의**")
+            for d in result.do_not:
+                st.write("• ", d)
 
         st.button(
             "상담카드 열기 →",

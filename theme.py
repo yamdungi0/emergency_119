@@ -138,6 +138,9 @@ def inject_css() -> None:
             padding: 1.1rem 1.25rem;
             margin-bottom: 1rem;
         }}
+        /* st.container(border=True) is used for cards — its own radius/border
+           (auto-generated class, not reliably targetable) is close enough to
+           .card as-is, so it's left unstyled here. */
         .kpi-label {{ color: {TEXT_SECONDARY}; font-size: 0.78rem; font-weight: 500; }}
         .kpi-value {{ font-size: 1.7rem; font-weight: 900; margin-top: 0.2rem; }}
         .kpi-delta {{ font-size: 0.78rem; margin-top: 0.25rem; }}

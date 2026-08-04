@@ -41,48 +41,45 @@ def render() -> None:
     result = st.session_state.get("intake_result")
 
     if not hospital or not result:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.info("먼저 02 접수 → 04 기관연계에서 이송 병원을 선택하세요.")
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st.info("먼저 02 접수 → 04 기관연계에서 이송 병원을 선택하세요.")
         return
 
     st.session_state.setdefault("transport_stage", 1)
     stage = st.session_state["transport_stage"]
 
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    cols = st.columns(len(STAGES))
-    for i, (col, label) in enumerate(zip(cols, STAGES)):
-        color = theme.CATEGORICAL["blue"] if i <= stage else theme.TEXT_MUTED
-        col.markdown(
-            f'<div style="text-align:center;"><div style="color:{color};font-weight:800;">{label}</div>'
-            f'<div style="height:4px;background:{color};border-radius:2px;margin-top:.4rem;"></div></div>',
-            unsafe_allow_html=True,
-        )
-    st.caption("API상 가용병상이 있어도 실제 수용이 확정된 것은 아닙니다. 각 단계는 전화 확인 결과로만 넘어갑니다.")
-    st.markdown("</div>", unsafe_allow_html=True)
+    with st.container(border=True):
+        cols = st.columns(len(STAGES))
+        for i, (col, label) in enumerate(zip(cols, STAGES)):
+            color = theme.CATEGORICAL["blue"] if i <= stage else theme.TEXT_MUTED
+            col.markdown(
+                f'<div style="text-align:center;"><div style="color:{color};font-weight:800;">{label}</div>'
+                f'<div style="height:4px;background:{color};border-radius:2px;margin-top:.4rem;"></div></div>',
+                unsafe_allow_html=True,
+            )
+        st.caption("API상 가용병상이 있어도 실제 수용이 확정된 것은 아닙니다. 각 단계는 전화 확인 결과로만 넘어갑니다.")
 
     left, right = st.columns([1.2, 1], gap="large")
 
     with left:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown(f"**병원 전달문 · {hospital}**")
-        handoff = build_handoff(result.facts, hospital, eta)
-        st.text_area("자동 생성 (수정 가능)", value=handoff, height=160, key="handoff_text")
-        st.caption("템플릿 고정 · 구조화 문진에 입력된 값만 사용 · 추정 문장 생성 없음")
+        with st.container(border=True):
+            st.markdown(f"**병원 전달문 · {hospital}**")
+            handoff = build_handoff(result.facts, hospital, eta)
+            st.text_area("자동 생성 (수정 가능)", value=handoff, height=160, key="handoff_text")
+            st.caption("템플릿 고정 · 구조화 문진에 입력된 값만 사용 · 추정 문장 생성 없음")
 
-        b1, b2, b3 = st.columns(3)
-        if b1.button("전화 연결 시작", use_container_width=True, disabled=stage != 0):
-            st.session_state["transport_stage"] = 1
-            st.session_state["call_started_at"] = datetime.now()
-            st.rerun()
-        if b2.button("수용 확인됨", type="primary", use_container_width=True, disabled=stage != 1):
-            st.session_state["transport_stage"] = 2
-            st.rerun()
-        if b3.button("수용 불가 → 다른 병원", use_container_width=True, disabled=stage not in (1, 2)):
-            st.session_state["page"] = "hospital"
-            st.session_state["transport_stage"] = 0
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
+            b1, b2, b3 = st.columns(3)
+            if b1.button("전화 연결 시작", use_container_width=True, disabled=stage != 0):
+                st.session_state["transport_stage"] = 1
+                st.session_state["call_started_at"] = datetime.now()
+                st.rerun()
+            if b2.button("수용 확인됨", type="primary", use_container_width=True, disabled=stage != 1):
+                st.session_state["transport_stage"] = 2
+                st.rerun()
+            if b3.button("수용 불가 → 다른 병원", use_container_width=True, disabled=stage not in (1, 2)):
+                st.session_state["page"] = "hospital"
+                st.session_state["transport_stage"] = 0
+                st.rerun()
 
         if stage >= 2:
             if st.button("최종 이송 결정 확정", type="primary", use_container_width=True, disabled=stage != 2):
@@ -91,32 +88,29 @@ def render() -> None:
                 st.rerun()
 
     with right:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown("**연락 기록**")
-        called_at = st.session_state.get("call_started_at")
-        st.markdown(
-            f"**{hospital}** — 연결시각 {called_at.strftime('%H:%M') if called_at else '-'} · "
-            f"결과 {STAGES[stage]}"
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown("**연락 기록**")
+            called_at = st.session_state.get("call_started_at")
+            st.markdown(
+                f"**{hospital}** — 연결시각 {called_at.strftime('%H:%M') if called_at else '-'} · "
+                f"결과 {STAGES[stage]}"
+            )
 
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown("**이송 결정**")
-        if stage == 3:
-            departed = st.session_state.get("departed_at", datetime.now())
-            arrival = departed + timedelta(minutes=eta)
-            m1, m2 = st.columns(2)
-            m1.metric("최종 이송병원", hospital)
-            m2.metric("출발시각", departed.strftime("%H:%M"))
-            m1.metric("예상 도착", arrival.strftime("%H:%M"))
-            m2.metric("의료지도", "완료")
-            st.success("이송 결정이 확정되었습니다. 구급활동 기록 초안이 자동 저장됩니다.")
-        else:
-            st.caption(f"최종 이송병원: 미확정 · 현재 단계 — {STAGES[stage]}")
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown("**이송 결정**")
+            if stage == 3:
+                departed = st.session_state.get("departed_at", datetime.now())
+                arrival = departed + timedelta(minutes=eta)
+                m1, m2 = st.columns(2)
+                m1.metric("최종 이송병원", hospital)
+                m2.metric("출발시각", departed.strftime("%H:%M"))
+                m1.metric("예상 도착", arrival.strftime("%H:%M"))
+                m2.metric("의료지도", "완료")
+                st.success("이송 결정이 확정되었습니다. 구급활동 기록 초안이 자동 저장됩니다.")
+            else:
+                st.caption(f"최종 이송병원: 미확정 · 현재 단계 — {STAGES[stage]}")
 
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown("**구급활동 기록 초안**")
-        st.caption("문진·상담카드 확인 항목·연락 기록·의료지도 내용이 하나의 초안으로 정리되며, "
-                    "구급대원이 최종 확인 후 확정합니다.")
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown("**구급활동 기록 초안**")
+            st.caption("문진·상담카드 확인 항목·연락 기록·의료지도 내용이 하나의 초안으로 정리되며, "
+                        "구급대원이 최종 확인 후 확정합니다.")

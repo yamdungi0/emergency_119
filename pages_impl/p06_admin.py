@@ -33,66 +33,60 @@ def render() -> None:
     left, right = st.columns([1.3, 1], gap="large")
 
     with left:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown("**기준모델 대비 성능 (WMAPE, 낮을수록 좋음)**")
-        agg = metrics[metrics["level"] == "national_aggregate"].sort_values("WMAPE", ascending=False)
-        colors = [theme.CATEGORICAL["aqua"] if m == "LightGBM_Poisson" else theme.TEXT_MUTED for m in agg["model"]]
-        fig = go.Figure(go.Bar(
-            x=agg["WMAPE"] * 100, y=agg["model"], orientation="h",
-            marker_color=colors, text=[f"{v*100:.1f}%" for v in agg["WMAPE"]], textposition="outside",
-        ))
-        fig.update_layout(**theme.plotly_layout_defaults(), height=260, xaxis_title="WMAPE (%)")
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-        st.caption(f"학습 {meta['train_period']} · 테스트 {meta['test_period']} · {meta['evaluation']}")
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown("**기준모델 대비 성능 (WMAPE, 낮을수록 좋음)**")
+            agg = metrics[metrics["level"] == "national_aggregate"].sort_values("WMAPE", ascending=False)
+            colors = [theme.CATEGORICAL["aqua"] if m == "LightGBM_Poisson" else theme.TEXT_MUTED for m in agg["model"]]
+            fig = go.Figure(go.Bar(
+                x=agg["WMAPE"] * 100, y=agg["model"], orientation="h",
+                marker_color=colors, text=[f"{v*100:.1f}%" for v in agg["WMAPE"]], textposition="outside",
+            ))
+            fig.update_layout(**theme.plotly_layout_defaults(), height=260, xaxis_title="WMAPE (%)")
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+            st.caption(f"학습 {meta['train_period']} · 테스트 {meta['test_period']} · {meta['evaluation']}")
 
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown("**2023 백테스트 — 월별 전국 실제 대 예측 합계**")
-        pred = dl.load_predictions()
-        monthly = pred.groupby(pred["time_block"].dt.month).agg(y=("y", "sum"), prediction=("prediction", "sum")).reset_index()
-        monthly.columns = ["month", "실제", "예측"]
-        fig2 = go.Figure()
-        fig2.add_trace(go.Bar(x=monthly["month"], y=monthly["실제"], name="실제", marker_color=theme.CATEGORICAL["blue"]))
-        fig2.add_trace(go.Scatter(x=monthly["month"], y=monthly["예측"], name="예측", mode="lines+markers",
-                                   line=dict(color=theme.CATEGORICAL["orange"], width=2)))
-        fig2.update_layout(**theme.plotly_layout_defaults(), height=280, xaxis_title="월")
-        st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown("**2023 백테스트 — 월별 전국 실제 대 예측 합계**")
+            pred = dl.load_predictions()
+            monthly = pred.groupby(pred["time_block"].dt.month).agg(y=("y", "sum"), prediction=("prediction", "sum")).reset_index()
+            monthly.columns = ["month", "실제", "예측"]
+            fig2 = go.Figure()
+            fig2.add_trace(go.Bar(x=monthly["month"], y=monthly["실제"], name="실제", marker_color=theme.CATEGORICAL["blue"]))
+            fig2.add_trace(go.Scatter(x=monthly["month"], y=monthly["예측"], name="예측", mode="lines+markers",
+                                       line=dict(color=theme.CATEGORICAL["orange"], width=2)))
+            fig2.update_layout(**theme.plotly_layout_defaults(), height=280, xaxis_title="월")
+            st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
 
     with right:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown("**SHAP 대용 — 특성 중요도 (gain)**")
-        top_fi = fi.sort_values("importance_gain", ascending=True).tail(8)
-        fig3 = go.Figure(go.Bar(
-            x=top_fi["importance_gain"], y=top_fi["feature"], orientation="h",
-            marker_color=theme.CATEGORICAL["violet"],
-        ))
-        fig3.update_layout(**theme.plotly_layout_defaults(), height=300)
-        st.plotly_chart(fig3, use_container_width=True, config={"displayModeBar": False})
-        st.caption("예측 증가 상위 요인: 최근 신고량 증가(rolling_mean) · 동일 시간대 과거 평균 · 지역")
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown("**SHAP 대용 — 특성 중요도 (gain)**")
+            top_fi = fi.sort_values("importance_gain", ascending=True).tail(8)
+            fig3 = go.Figure(go.Bar(
+                x=top_fi["importance_gain"], y=top_fi["feature"], orientation="h",
+                marker_color=theme.CATEGORICAL["violet"],
+            ))
+            fig3.update_layout(**theme.plotly_layout_defaults(), height=300)
+            st.plotly_chart(fig3, use_container_width=True, config={"displayModeBar": False})
+            st.caption("예측 증가 상위 요인: 최근 신고량 증가(rolling_mean) · 동일 시간대 과거 평균 · 지역")
 
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown("**데이터 품질**")
-        st.markdown(
-            f'<div class="muted">중증도 값 결측률</div>'
-            f'<div style="font-weight:800;color:{theme.STATUS["critical"]}">약 45.2%</div>'
-            f'<div class="muted" style="margin-top:.5rem;">활력징후·이송결과 보유율</div>'
-            f'<div style="font-weight:800;">0% · 미수집</div>',
-            unsafe_allow_html=True,
-        )
-        st.caption("환자 중증도 예측 모델은 MVP에서 제외 — 예측 대상은 지역·시간대별 신고 발생량으로 한정합니다.")
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown("**데이터 품질**")
+            st.markdown(
+                f'<div class="muted">중증도 값 결측률</div>'
+                f'<div style="font-weight:800;color:{theme.STATUS["critical"]}">약 45.2%</div>'
+                f'<div class="muted" style="margin-top:.5rem;">활력징후·이송결과 보유율</div>'
+                f'<div style="font-weight:800;">0% · 미수집</div>',
+                unsafe_allow_html=True,
+            )
+            st.caption("환자 중증도 예측 모델은 MVP에서 제외 — 예측 대상은 지역·시간대별 신고 발생량으로 한정합니다.")
 
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown("**사용 특성 (전체 24개)**")
-        st.code(", ".join(meta["features"]), language=None)
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown("**사용 특성 (전체 24개)**")
+            st.code(", ".join(meta["features"]), language=None)
 
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("**비교 기준모델 전체 결과표**")
-    show = metrics.copy()
-    show["WMAPE"] = (show["WMAPE"] * 100).round(1)
-    show.columns = ["단위", "모델", "MAE", "WMAPE(%)", "Poisson deviance"]
-    st.dataframe(show, hide_index=True, use_container_width=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+    with st.container(border=True):
+        st.markdown("**비교 기준모델 전체 결과표**")
+        show = metrics.copy()
+        show["WMAPE"] = (show["WMAPE"] * 100).round(1)
+        show.columns = ["단위", "모델", "MAE", "WMAPE(%)", "Poisson deviance"]
+        st.dataframe(show, hide_index=True, use_container_width=True)

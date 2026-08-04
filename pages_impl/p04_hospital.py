@@ -79,8 +79,7 @@ def render() -> None:
 
     map_col, info_col = st.columns([1.1, 1], gap="large")
 
-    with map_col:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
+    with map_col, st.container(border=True):
         fig = go.Figure()
         fig.add_trace(go.Scattermapbox(
             lat=[PATIENT["lat"]], lon=[PATIENT["lon"]], mode="markers+text",
@@ -105,49 +104,45 @@ def render() -> None:
         )
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
         st.caption(f"환자 위치: {PATIENT['region']} · 예상 이동시간은 직선거리 기준 추정값(샘플 데이터)")
-        st.markdown("</div>", unsafe_allow_html=True)
 
     with info_col:
         if not passed:
-            st.markdown('<div class="card">', unsafe_allow_html=True)
-            st.error("필수조건을 충족하는 후보가 없습니다. 조건을 다시 확인하세요.")
-            st.markdown("</div>", unsafe_allow_html=True)
+            with st.container(border=True):
+                st.error("필수조건을 충족하는 후보가 없습니다. 조건을 다시 확인하세요.")
         else:
             top = passed[0]
-            st.markdown('<div class="card">', unsafe_allow_html=True)
-            st.markdown(theme.status_badge("관심", "1순위"), unsafe_allow_html=True)
-            st.markdown(f"### {top['name']}")
-            st.caption(f"{top['tier']} · 예상 이동 {top['eta_min']}분")
-            m1, m2 = st.columns(2)
-            m1.metric("응급실 병상", f"{top['er_beds']}")
-            m2.metric("중환자실", f"{top['icu_beds']}")
-            m1.metric("인공호흡기", "가능" if top["ventilator"] else "불가")
-            m2.metric("약물중환자(hv7)", "확인" if top["drug_icu"] else "미확인")
+            with st.container(border=True):
+                st.markdown(theme.status_badge("관심", "1순위"), unsafe_allow_html=True)
+                st.markdown(f"### {top['name']}")
+                st.caption(f"{top['tier']} · 예상 이동 {top['eta_min']}분")
+                m1, m2 = st.columns(2)
+                m1.metric("응급실 병상", f"{top['er_beds']}")
+                m2.metric("중환자실", f"{top['icu_beds']}")
+                m1.metric("인공호흡기", "가능" if top["ventilator"] else "불가")
+                m2.metric("약물중환자(hv7)", "확인" if top["drug_icu"] else "미확인")
 
-            st.markdown(f"**추천 점수 {top['total']:.2f}**")
-            seg_html = "".join(
-                f'<div style="flex:{w};background:{SEG_COLORS[i]};height:10px;"></div>'
-                for i, (label, (w, v)) in enumerate(top["parts"].items())
-            )
-            st.markdown(f'<div style="display:flex;border-radius:6px;overflow:hidden;margin:.3rem 0;">{seg_html}</div>', unsafe_allow_html=True)
-            legend = " · ".join(f"{label} {v:.2f}" for label, (w, v) in top["parts"].items())
-            st.markdown(f'<div class="muted">{legend}</div>', unsafe_allow_html=True)
+                st.markdown(f"**추천 점수 {top['total']:.2f}**")
+                seg_html = "".join(
+                    f'<div style="flex:{w};background:{SEG_COLORS[i]};height:10px;"></div>'
+                    for i, (label, (w, v)) in enumerate(top["parts"].items())
+                )
+                st.markdown(f'<div style="display:flex;border-radius:6px;overflow:hidden;margin:.3rem 0;">{seg_html}</div>', unsafe_allow_html=True)
+                legend = " · ".join(f"{label} {v:.2f}" for label, (w, v) in top["parts"].items())
+                st.markdown(f'<div class="muted">{legend}</div>', unsafe_allow_html=True)
 
-            st.button(
-                "이 병원으로 이송 결정 진행 →",
-                type="primary",
-                use_container_width=True,
-                on_click=lambda: st.session_state.update(page="transport", selected_hospital=top["name"], selected_eta=top["eta_min"]),
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
+                st.button(
+                    "이 병원으로 이송 결정 진행 →",
+                    type="primary",
+                    use_container_width=True,
+                    on_click=lambda: st.session_state.update(page="transport", selected_hospital=top["name"], selected_eta=top["eta_min"]),
+                )
 
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown("**후보 비교**")
-        for i, h in enumerate(scored, 1):
-            status = "제외" if not h["hard_pass"] else ("1순위" if h is passed[0] else f"{passed.index(h)+1}순위")
-            st.markdown(
-                f"**{h['name']}** — {h['eta_min']}분 · 병상 {h['er_beds']} · "
-                f"{'적합' if h['hard_pass'] else '부적합'} · {status} · 점수 {h['total']:.2f}"
-            )
-        st.caption("여기서 '순위'는 자동 이송 결정이 아니라 연락 우선순위입니다. 실제 수용 여부는 전화로 확인합니다.")
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown("**후보 비교**")
+            for i, h in enumerate(scored, 1):
+                status = "제외" if not h["hard_pass"] else ("1순위" if h is passed[0] else f"{passed.index(h)+1}순위")
+                st.markdown(
+                    f"**{h['name']}** — {h['eta_min']}분 · 병상 {h['er_beds']} · "
+                    f"{'적합' if h['hard_pass'] else '부적합'} · {status} · 점수 {h['total']:.2f}"
+                )
+            st.caption("여기서 '순위'는 자동 이송 결정이 아니라 연락 우선순위입니다. 실제 수용 여부는 전화로 확인합니다.")
