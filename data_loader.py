@@ -132,7 +132,7 @@ def risk_level(ratio: float) -> str:
         return "경계"
     if ratio >= 1.1:
         return "주의"
-    return "정상"
+    return "관심"
 
 
 def category_mix(month_day: str, up_to_slot: int) -> pd.DataFrame:

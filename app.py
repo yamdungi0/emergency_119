@@ -28,17 +28,15 @@ PAGES = {
 }
 
 with st.sidebar:
-    st.markdown(
-        """
-        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1.2rem;">
-            <div style="background:#d03b3b;color:white;font-weight:800;border-radius:10px;
-                        width:42px;height:42px;display:flex;align-items:center;justify-content:center;
-                        font-size:1.05rem;">119</div>
-            <div style="font-weight:800;font-size:1.05rem;">약물안전 상황판</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    sidebar_logo_html = (
+        '<div style="display:flex;align-items:center;gap:.6rem;margin-bottom:1.2rem;">'
+        + theme.logo_svg(width=40, height=31, on_dark=True)
+        + '<div style="line-height:1.2;">'
+        + '<div style="font-weight:900;font-size:1rem;">119 약물안전</div>'
+        + '<div style="font-weight:500;font-size:.72rem;color:rgba(255,255,255,.65);">상황판</div>'
+        + "</div></div>"
     )
+    st.markdown(sidebar_logo_html, unsafe_allow_html=True)
     for key, num, label in theme.NAV_ITEMS:
         active = st.session_state["page"] == key
         css_class = "nav-btn-active" if active else ""

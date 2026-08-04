@@ -100,7 +100,7 @@ def render() -> None:
                 text=[f"{h['name']} (제외)"], textposition="top center", name=h["name"],
             ))
         fig.update_layout(
-            mapbox=dict(style="carto-darkmatter", center=dict(lat=PATIENT["lat"], lon=PATIENT["lon"]), zoom=11.5),
+            mapbox=dict(style="carto-positron", center=dict(lat=PATIENT["lat"], lon=PATIENT["lon"]), zoom=11.5),
             paper_bgcolor=theme.CARD_BG, margin=dict(l=0, r=0, t=0, b=0), height=420, showlegend=False,
         )
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
@@ -115,7 +115,7 @@ def render() -> None:
         else:
             top = passed[0]
             st.markdown('<div class="card">', unsafe_allow_html=True)
-            st.markdown(theme.status_badge("정상", "1순위"), unsafe_allow_html=True)
+            st.markdown(theme.status_badge("관심", "1순위"), unsafe_allow_html=True)
             st.markdown(f"### {top['name']}")
             st.caption(f"{top['tier']} · 예상 이동 {top['eta_min']}분")
             m1, m2 = st.columns(2)

@@ -54,7 +54,7 @@ def render() -> None:
         fig2 = go.Figure()
         fig2.add_trace(go.Bar(x=monthly["month"], y=monthly["실제"], name="실제", marker_color=theme.CATEGORICAL["blue"]))
         fig2.add_trace(go.Scatter(x=monthly["month"], y=monthly["예측"], name="예측", mode="lines+markers",
-                                   line=dict(color=theme.STATUS["warning"], width=2)))
+                                   line=dict(color=theme.CATEGORICAL["orange"], width=2)))
         fig2.update_layout(**theme.plotly_layout_defaults(), height=280, xaxis_title="월")
         st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
         st.markdown("</div>", unsafe_allow_html=True)

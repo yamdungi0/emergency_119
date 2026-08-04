@@ -85,7 +85,7 @@ def render() -> None:
 
         st.markdown(
             f"""
-            <div class="card" style="background:rgba(208,59,59,0.08);border-color:{theme.STATUS['critical']}55;">
+            <div class="card" style="background:rgba(196,64,43,0.07);border-color:{theme.STATUS['critical']}55;">
             <b>주의 · 금지</b><br>
             ✕ 억지로 토하게 하지 않는다<br>
             ✕ 약물 확인을 위해 이송을 지연하지 않는다<br>

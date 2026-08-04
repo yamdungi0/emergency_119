@@ -149,7 +149,7 @@ def render() -> None:
                 unsafe_allow_html=True,
             )
 
-        urgency_badge = {"RED": "심각", "ORANGE": "경계", "YELLOW": "주의", "UNKNOWN": "정상"}[result.urgency]
+        urgency_badge = {"RED": "심각", "ORANGE": "경계", "YELLOW": "주의", "UNKNOWN": "관심"}[result.urgency]
         st.markdown('<div class="card">', unsafe_allow_html=True)
         st.markdown(
             f'{theme.status_badge(urgency_badge, f"{result.urgency} · {result.category}")}',

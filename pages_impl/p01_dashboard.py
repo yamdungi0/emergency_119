@@ -102,7 +102,7 @@ def render() -> None:
         st.markdown("**시도별 위험도 · 현재 누적 기준**")
         cols = st.columns(6)
         badge_color = {
-            "정상": theme.STATUS["good"], "주의": theme.STATUS["warning"],
+            "관심": theme.STATUS["good"], "주의": theme.STATUS["warning"],
             "경계": theme.STATUS["serious"], "심각": theme.STATUS["critical"],
         }
         for i, row in snapshot.sort_values("region_short").reset_index().iterrows():
@@ -133,7 +133,7 @@ def render() -> None:
             st.markdown(f"**{top['region_short']} · 평시 대비 {top['ratio_vs_baseline']:.1f}배**")
             st.caption(f"현재까지 실제 {int(top['actual_so_far'])}건 · 동시점 예측 {top['predicted_so_far']:.1f}건")
         else:
-            st.markdown(theme.status_badge("정상", "이상징후 없음"), unsafe_allow_html=True)
+            st.markdown(theme.status_badge("관심", "이상징후 없음"), unsafe_allow_html=True)
             st.caption("모든 지역이 평시 대비 1.5배 미만입니다.")
         st.markdown("</div>", unsafe_allow_html=True)
 
