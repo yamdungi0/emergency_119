@@ -231,7 +231,14 @@ def render() -> None:
                     hoverinfo="text",
                 ))
             fig_map.update_layout(
-                mapbox=dict(style="carto-positron", center=dict(lat=36.4, lon=127.9), zoom=5.4),
+                # carto-positron 기본 스타일은 지도 자체 지명 라벨(평양·원산·남포 등 북한
+                # 지명, 잘린 영문 도시명)이 우리가 그리는 시도명·건수 텍스트와 겹쳐서
+                # 가독성이 떨어졌다 — CARTO의 무료·토큰 불필요 "라벨 없음" 스타일로 교체해
+                # 배경 지도에는 지명 없이 경계·색상만 남기고, 라벨은 우리 마커 텍스트만 보이게 한다.
+                mapbox=dict(
+                    style="https://basemaps.cartocdn.com/gl/positron-nolabels-gl-style/style.json",
+                    center=dict(lat=36.4, lon=127.9), zoom=5.4,
+                ),
                 paper_bgcolor=theme.CARD_BG,
                 margin=dict(l=0, r=0, t=0, b=0),
                 height=460,
