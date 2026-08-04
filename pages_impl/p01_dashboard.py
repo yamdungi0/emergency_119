@@ -138,29 +138,40 @@ def render() -> None:
     with chart_box:
         _title("시간대별 신고량 — 실제 대 예측 (전국 합계)")
         fig = go.Figure()
-        slot_labels = [f"{h:02d}시" for h in dl.SLOTS]
+        # x축은 하루 마지막 3시간 구간(21시~24시)의 끝을 보여주기 위해 "24시" 눈금을
+        # 하나 더 붙인다 — 실제 슬롯은 00,03,...,21시 8개뿐이라 데이터 점은 없다.
+        slot_labels = [f"{h:02d}시" for h in dl.SLOTS] + ["24시"]
 
         actual_masked = series["actual"].where(series["slot"] <= up_to_slot)
         fig.add_trace(go.Scatter(
-            x=slot_labels, y=actual_masked,
+            x=slot_labels[:-1], y=actual_masked,
             name="실제", mode="lines+markers",
             line=dict(color=theme.STATUS["critical"], width=2.5),
             marker=dict(size=7),
         ))
 
-        # 원 모델은 "지금부터 향후 3시간"만 내다보는 롤링 예측기이므로, 하루치 예측을
-        # 한번에 미리 보여줄 수 없다 — 실제선 끝(지금)에서 향후 3시간 뒤 한 점까지만
-        # 잇는다. 끝점 값은 KPI 카드의 "향후 3시간 예상"과 동일한 next_window_pred.
+        # 예측은 "지금(up_to_slot)"부터 하루 끝(21시 슬롯)까지 이어 그린다 — 각 슬롯의
+        # 예측값 자체가 causal(그 시점까지의 데이터만 사용)하게 3시간 단위로 계산된
+        # 것이므로, 이어 그려도 미래를 미리 아는 게 아니라 "3시간마다 갱신되는 예측을
+        # 누적해 보여주는 것"이다. 실제선 끝(지금)에서 시작해 자연스럽게 이어진다.
         now_actual = float(series.loc[series["slot"] == up_to_slot, "actual"].iloc[0])
-        now_label = f"{up_to_slot:02d}시"
-        next_label = f"{next_start.hour:02d}시" + ("(익일)" if next_start.date() != selected_date else "")
-        if next_label not in slot_labels:
-            slot_labels = slot_labels + [next_label]
+        future_mask = series["slot"] >= up_to_slot
+        pred_x = [f"{h:02d}시" for h in series.loc[future_mask, "slot"]]
+        pred_y = series.loc[future_mask, "prediction"].tolist()
+        pred_x[0], pred_y[0] = f"{up_to_slot:02d}시", now_actual
         fig.add_trace(go.Scatter(
-            x=[now_label, next_label], y=[now_actual, next_window_pred],
-            name="예측 (향후 3시간)", mode="lines+markers",
+            x=pred_x, y=pred_y,
+            name="예측", mode="lines+markers",
             line=dict(color=theme.CATEGORICAL["blue"], dash="dash", width=2),
             marker=dict(size=6),
+        ))
+
+        # 카테고리 축은 실제로 데이터가 찍힌 x값만 눈금으로 인식하므로, "24시"는
+        # 어느 트레이스에도 없으면 아예 표시되지 않는다 — 보이지 않는 더미 점으로
+        # 카테고리 존재만 등록한다.
+        fig.add_trace(go.Scatter(
+            x=["24시"], y=[None], mode="markers",
+            marker=dict(opacity=0), showlegend=False, hoverinfo="skip",
         ))
 
         fig.add_vline(x=dl.SLOTS.index(up_to_slot), line_width=1, line_dash="dot",
@@ -196,7 +207,9 @@ def render() -> None:
             # 가독성이 떨어졌다 — "0건(비활동)/신고 있음/이상징후" 3단계로 단순화해
             # 색 대비를 뚜렷하게 준다. 관심·주의는 "신고 있음"으로, 경계·심각은
             # "이상징후"로 묶고, 실제 누적이 0인 지역은 별도로 회색 처리한다.
-            MAP_TIER_COLOR = {"0건": "#757575", "신고 있음": "#FFBB29", "이상징후": "#FF3433"}
+            # 색은 임의 hex 대신 앱 디자인 시스템의 기존 팔레트(theme.STATUS)를 그대로
+            # 재사용해 나머지 화면과 톤이 어긋나지 않도록 한다.
+            MAP_TIER_COLOR = {"0건": "#AEB4C2", "신고 있음": theme.STATUS["warning"], "이상징후": theme.STATUS["critical"]}
             NAVY_OUTLINE = "#12285A"
             map_df = snapshot.copy()
             map_df["lat"] = map_df["region"].map(lambda r: dl.REGION_COORDS[r][0])
@@ -261,8 +274,18 @@ def render() -> None:
                 paper_bgcolor=theme.CARD_BG,
                 margin=dict(l=0, r=0, t=0, b=0),
                 height=460,
-                legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="left", x=0, font=dict(size=10)),
+                showlegend=False,
             )
+            # Choroplethmapbox는 Plotly 기본 범례에서 색상 견본이 제대로 안 나오는
+            # 경우가 있어(showscale=False와 결합 시 특히), 직접 만든 HTML 범례를 쓴다.
+            legend_html = "".join(
+                f'<span style="display:inline-flex;align-items:center;gap:.3rem;margin-right:1rem;">'
+                f'<span style="width:10px;height:10px;border-radius:50%;background:{color};'
+                f'display:inline-block;border:1px solid {NAVY_OUTLINE}55;"></span>'
+                f'<span style="font-size:.78rem;color:{theme.TEXT_SECONDARY};">{tier}</span></span>'
+                for tier, color in MAP_TIER_COLOR.items()
+            )
+            st.markdown(f'<div style="margin-bottom:.4rem;">{legend_html}</div>', unsafe_allow_html=True)
             st.plotly_chart(fig_map, use_container_width=True, config={"displayModeBar": False})
             st.markdown(
                 '<div class="muted" style="margin-top:.3rem;font-size:.72rem;">영역 색상=위험도 · 숫자=실제 누적</div>',

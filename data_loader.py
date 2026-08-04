@@ -268,7 +268,10 @@ def region_day_snapshot(month_day: str, up_to_slot: int) -> pd.DataFrame:
         so_far_pred = p_region[p_region["slot"] <= up_to_slot]["prediction"].sum()
         remaining_pred = p_region[p_region["slot"] > up_to_slot]["prediction"].sum()
 
-        baseline = p_region["prediction"].mean() * len(SLOTS[: SLOTS.index(up_to_slot) + 1])
+        # "평시 대비 배수"는 화면에 같이 보여주는 "동시점 예측"(so_far_pred)과 반드시
+        # 같은 수를 분모로 써야 설명 가능하다 — 예전엔 별도의 평균 기반 기준선을 써서
+        # 두 숫자가 서로 안 맞아 보였다(예: 실제 1건·예측 0.3건인데 "3.0배"로 표시).
+        baseline = so_far_pred
         ratio = so_far_actual / baseline if baseline > 0 else (1.0 if so_far_actual == 0 else 3.0)
 
         rows.append(

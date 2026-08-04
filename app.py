@@ -19,7 +19,7 @@ if "page" not in st.session_state:
     st.session_state["page"] = "dashboard"
 
 PAGES = {
-    "dashboard": (p01_dashboard, "전국 약물안전 상황판", "상황실 · 향후 3시간 수요예측 및 이상징후", None),
+    "dashboard": (p01_dashboard, "전국 약물안전 상황판", "상황실 · 3시간 단위 수요예측 및 이상징후", None),
     "intake": (p02_intake, "약물 AI 보조패널", "기존 구급활동일지(e-Triage 연계) + 약물 정보 자동추출", "기존 e-Triage를 대체하지 않고 선제예측 기능을 추가"),
     "card": (p03_card, "약물 대응 카드 및 의료지도", "표준지침 기반 확인 순서 · 영상의료지도 연계", "Pre-KTAS 결과는 기존 시스템 값 사용"),
     "hospital": (p04_hospital, "병원 연계 보조 및 전달문", "적합성 판단 근거 비교 + 전달문 자동생성", "병원 추천이 아닌 적합성 설명과 전달문 보조"),
