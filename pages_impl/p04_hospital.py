@@ -182,9 +182,22 @@ def render() -> None:
         for h in scored:
             badge_kind = {"적합": "good", "조건부 적합": "warning", "부적합": "critical"}[h["verdict"]]
             st.markdown(
-                f'<div style="display:flex;justify-content:space-between;align-items:center;margin:.4rem 0;">'
-                f'<span><b>{h["name"]}</b> <span class="muted">{h["eta_min"]}분</span></span>'
+                f'<div style="display:flex;justify-content:space-between;align-items:center;margin:.4rem 0 .15rem;">'
+                f'<span><b>{h["name"]}</b> <span class="muted">{h["eta_min"]}분 · {h["distance_km"]}km</span></span>'
                 f'<span class="badge badge-{badge_kind}">{h["verdict"]}</span></div>',
+                unsafe_allow_html=True,
+            )
+            # 기획서가 명시한 "중환자실·인공호흡기·약물중환자 정보" 3가지를 점수 뒤에
+            # 숨기지 않고 원자료 그대로 보여준다 — 왜 적합/부적합인지 근거가 바로 보이게.
+            def _tag(ok: bool, label: str) -> str:
+                color = theme.STATUS["good"] if ok else theme.TEXT_MUTED
+                return f'<span style="color:{color};font-size:.74rem;margin-right:.6rem;">{"●" if ok else "○"} {label}</span>'
+            icu_beds = h["icu_beds"]
+            icu_tag = _tag(icu_beds > 0, f"중환자실 {icu_beds}병상")
+            vent_tag = _tag(h["ventilator"], "인공호흡기")
+            drug_icu_tag = _tag(h["drug_icu"], "약물중환자 대응")
+            st.markdown(
+                f'<div style="margin-bottom:.5rem;">{icu_tag}{vent_tag}{drug_icu_tag}</div>',
                 unsafe_allow_html=True,
             )
         st.caption("이동 시간은 실시간 교통 상황에 따라 변동될 수 있습니다(샘플 데이터).")
@@ -200,6 +213,16 @@ def render() -> None:
                 f"<td style='padding:.3rem .5rem;text-align:center;'>{h['parts'][label][1]:.2f}</td>" for h in scored
             )
             html.append(f"<tr style='border-top:1px solid {theme.CARD_BORDER};'><td style='padding:.3rem .5rem;color:{theme.TEXT_SECONDARY};'>{label}</td>{cells}</tr>")
+        # 약물중환자 대응 여부는 가중치 점수(임상적합성 등)에는 이미 반영돼 있지만,
+        # 기획서가 별도 비교항목으로 명시한 만큼 원자료 그대로 참고행으로 노출한다.
+        drug_icu_cells = "".join(
+            f"<td style='padding:.3rem .5rem;text-align:center;'>{'✓' if h['drug_icu'] else '—'}</td>" for h in scored
+        )
+        html.append(
+            f"<tr style='border-top:1px solid {theme.CARD_BORDER};'>"
+            f"<td style='padding:.3rem .5rem;color:{theme.TEXT_SECONDARY};'>약물중환자 대응<span class='muted' style='font-size:.7rem;'>(참고)</span></td>"
+            f"{drug_icu_cells}</tr>"
+        )
         verdict_cells = "".join(
             f"<td style='padding:.3rem .5rem;text-align:center;'>{theme.status_badge({'적합':'good','조건부 적합':'warning','부적합':'critical'}[h['verdict']], h['verdict'])}</td>"
             for h in scored
