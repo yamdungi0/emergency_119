@@ -36,7 +36,7 @@ def _kpi(col, label: str, value: str, delta: str | None = None,
 def render() -> None:
     # 응급 상황판 특성상 스크롤 없이 한 화면에 다 보이도록 3열로 배치한다:
     # 왼쪽=핵심 지표, 가운데=날짜·그래프·브리핑, 오른쪽=유형분포·지도·이상징후.
-    kpi_col, main_col, side_col = st.columns([1, 2.4, 1.5])
+    kpi_col, main_col, side_col = st.columns([1, 2.4, 1.5], gap="small")
 
     with main_col:
         selected_date = st.date_input(
@@ -166,10 +166,13 @@ def render() -> None:
 
         with st.container(border=True):
             st.markdown("**시도별 실시간 위험도 지도**")
-            badge_color = {
-                "관심": theme.STATUS["good"], "주의": theme.STATUS["warning"],
-                "경계": theme.STATUS["serious"], "심각": theme.STATUS["critical"],
+            # 더 쨍하고(채도 높은) 진한 남색 테두리가 도는 마커 — 기본 경보색보다
+            # 지도 위에서 또렷하게 보이도록 지도 전용 팔레트를 쓴다.
+            map_marker_color = {
+                "관심": "#2F6FEA", "주의": "#F5B300",
+                "경계": "#F2701C", "심각": "#E42B2B",
             }
+            NAVY_OUTLINE = "#12285A"
             map_df = snapshot.copy()
             map_df["lat"] = map_df["region"].map(lambda r: dl.REGION_COORDS[r][0])
             map_df["lon"] = map_df["region"].map(lambda r: dl.REGION_COORDS[r][1])
@@ -180,10 +183,19 @@ def render() -> None:
                 level_df = map_df[map_df["risk"] == risk_level]
                 if level_df.empty:
                     continue
+                # 네이비 아웃라인 효과: Scattermapbox 마커는 line(테두리) 속성이 없어서,
+                # 조금 더 큰 남색 원을 먼저 그리고 그 위에 본 마커를 겹쳐 테두리처럼 보이게 한다.
+                fig_map.add_trace(go.Scattermapbox(
+                    lat=level_df["lat"], lon=level_df["lon"],
+                    mode="markers",
+                    marker=dict(size=level_df["marker_size"] + 5, color=NAVY_OUTLINE),
+                    hoverinfo="skip",
+                    showlegend=False,
+                ))
                 fig_map.add_trace(go.Scattermapbox(
                     lat=level_df["lat"], lon=level_df["lon"],
                     mode="markers+text",
-                    marker=dict(size=level_df["marker_size"], color=badge_color[risk_level]),
+                    marker=dict(size=level_df["marker_size"], color=map_marker_color[risk_level]),
                     text=[f"{r} {c}" for r, c in zip(level_df["region_short"], level_df["actual_so_far"])],
                     textposition="top center",
                     textfont=dict(size=10, color=theme.TEXT_PRIMARY),
@@ -198,7 +210,7 @@ def render() -> None:
                 mapbox=dict(style="carto-positron", center=dict(lat=36.4, lon=127.9), zoom=5.4),
                 paper_bgcolor=theme.CARD_BG,
                 margin=dict(l=0, r=0, t=0, b=0),
-                height=300,
+                height=380,
                 legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="left", x=0, font=dict(size=10)),
             )
             st.plotly_chart(fig_map, use_container_width=True, config={"displayModeBar": False})

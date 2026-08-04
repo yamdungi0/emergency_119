@@ -110,9 +110,9 @@ def inject_css() -> None:
             color: rgba(255,255,255,0.62) !important;
         }}
         .block-container {{
-            padding-top: 3.6rem;
-            padding-bottom: 1.6rem;
-            max-width: 1500px;
+            padding-top: 3.0rem;
+            padding-bottom: 1.2rem;
+            max-width: 1600px;
         }}
         div[data-testid="stVerticalBlock"] {{
             gap: 0.6rem;
@@ -127,8 +127,8 @@ def inject_css() -> None:
             justify-content: space-between;
             align-items: baseline;
             border-bottom: 1px solid {CARD_BORDER};
-            padding-bottom: 0.9rem;
-            margin-bottom: 1.1rem;
+            padding-bottom: 0.6rem;
+            margin-bottom: 0.6rem;
         }}
         .topbar-title {{ font-size: 1.6rem; font-weight: 900; letter-spacing: -0.01em; }}
         .topbar-sub {{ color: {TEXT_SECONDARY}; font-size: 0.88rem; margin-top: 0.2rem; }}
