@@ -189,7 +189,7 @@ def render() -> None:
             brief = (
                 f"{month_day} {up_to_slot:02d}시 기준, 약물 관련 신고는 전국적으로 "
                 f"모델 예측 대비 {delta_pct:+.0f}% 수준입니다. {top['region_short']} 지역이 "
-                f"평시 대비 {top['ratio_vs_baseline']:.1f}배로 가장 두드러지며, "
+                f"실제 {int(top['actual_so_far'])}건(평시 대비 {top['ratio_vs_baseline']:.1f}배)으로 가장 두드러지며, "
                 f"주요 유형은 {top_type['label'] if top_type is not None else '미상'}입니다."
             )
         else:
@@ -297,8 +297,14 @@ def render() -> None:
                 top = alert_regions.iloc[0]
                 badge_label = f"이상징후 · {top['risk']}"
                 st.markdown(theme.status_badge(top["risk"], badge_label), unsafe_allow_html=True)
-                st.markdown(f"**{top['region_short']} · 평시 대비 {top['ratio_vs_baseline']:.1f}배**")
-                st.caption(f"현재까지 실제 {int(top['actual_so_far'])}건 · 동시점 예측 {top['predicted_so_far']:.1f}건")
+                # 배수(3.2배)를 맨 앞에 크게 보여주면, 원래 발생이 드문 지역에서는
+                # 건수 1~2개 차이만으로도 배수가 크게 튀어 과장돼 보인다 — 실제 건수를
+                # 먼저 보여주고 배수는 괄호로 보조정보만 남긴다.
+                st.markdown(f"**{top['region_short']} · 실제 {int(top['actual_so_far'])}건** (평시 대비 {top['ratio_vs_baseline']:.1f}배)")
+                st.caption(
+                    f"평소 이 시간대 평균 {top['predicted_so_far']:.1f}건 · "
+                    "발생 건수가 적은 지역일수록 배수는 민감하게 움직입니다"
+                )
             else:
                 st.markdown(theme.status_badge("관심", "이상징후 없음"), unsafe_allow_html=True)
                 st.caption("모든 지역이 평시 대비 1.5배 미만입니다.")
