@@ -200,35 +200,41 @@ def render() -> None:
             map_df = snapshot.copy()
             map_df["lat"] = map_df["region"].map(lambda r: dl.REGION_COORDS[r][0])
             map_df["lon"] = map_df["region"].map(lambda r: dl.REGION_COORDS[r][1])
-            map_df["marker_size"] = 14 + map_df["actual_so_far"] * 3.2
+            geojson = dl.load_province_geojson()
 
+            # 점 마커 대신 시도 영역 자체를 위험도 색으로 채운다(코로플레스) — 지역별
+            # 경계가 실제 면적으로 보여 한눈에 들어오도록. 시도명 텍스트는 그 위에 겹쳐 표시.
             fig_map = go.Figure()
             for risk_level in ["관심", "주의", "경계", "심각"]:
                 level_df = map_df[map_df["risk"] == risk_level]
                 if level_df.empty:
                     continue
-                # 네이비 아웃라인 효과: Scattermapbox 마커는 line(테두리) 속성이 없어서,
-                # 조금 더 큰 남색 원을 먼저 그리고 그 위에 본 마커를 겹쳐 테두리처럼 보이게 한다.
-                fig_map.add_trace(go.Scattermapbox(
-                    lat=level_df["lat"], lon=level_df["lon"],
-                    mode="markers",
-                    marker=dict(size=level_df["marker_size"] + 5, color=NAVY_OUTLINE),
-                    hoverinfo="skip",
-                    showlegend=False,
-                ))
-                fig_map.add_trace(go.Scattermapbox(
-                    lat=level_df["lat"], lon=level_df["lon"],
-                    mode="markers+text",
-                    marker=dict(size=level_df["marker_size"], color=map_marker_color[risk_level]),
-                    text=[f"{r} {c}" for r, c in zip(level_df["region_short"], level_df["actual_so_far"])],
-                    textposition="top center",
-                    textfont=dict(size=10, color=theme.TEXT_PRIMARY),
+                fig_map.add_trace(go.Choroplethmapbox(
+                    geojson=geojson,
+                    featureidkey="properties.name",
+                    locations=level_df["region"],
+                    z=[1] * len(level_df),
+                    colorscale=[[0, map_marker_color[risk_level]], [1, map_marker_color[risk_level]]],
+                    showscale=False,
+                    marker=dict(opacity=0.82, line=dict(color=NAVY_OUTLINE, width=1)),
                     name=risk_level,
-                    hovertext=[
+                    text=[
                         f"{r}<br>실제 누적 {c}건<br>평시 대비 {ratio:.1f}배<br>위험도 {risk_level}"
                         for r, c, ratio in zip(level_df["region_short"], level_df["actual_so_far"], level_df["ratio_vs_baseline"])
                     ],
                     hoverinfo="text",
+                ))
+                fig_map.add_trace(go.Scattermapbox(
+                    lat=level_df["lat"], lon=level_df["lon"],
+                    mode="text",
+                    text=[f"{r} {c}" for r, c in zip(level_df["region_short"], level_df["actual_so_far"])],
+                    # Mapbox GL 텍스트는 페이지 CSS 폰트가 아니라 지도 스타일이 제공하는
+                    # 글리프 서버 폰트만 쓴다 — family를 안 주면 기본값이 한글을 이상하게
+                    # 렌더링해서, CARTO 글리프 서버가 실제로 제공하는 한글 고딕(나눔바른고딕)
+                    # 폰트스택을 명시한다.
+                    textfont=dict(size=10, color=NAVY_OUTLINE, family="Open Sans Regular, NanumBarunGothic Regular"),
+                    showlegend=False,
+                    hoverinfo="skip",
                 ))
             fig_map.update_layout(
                 # carto-positron 기본 스타일은 지도 자체 지명 라벨(평양·원산·남포 등 북한
@@ -246,7 +252,7 @@ def render() -> None:
             )
             st.plotly_chart(fig_map, use_container_width=True, config={"displayModeBar": False})
             st.markdown(
-                '<div class="muted" style="margin-top:.3rem;font-size:.72rem;">마커 크기=실제 누적 · 색상=위험도</div>',
+                '<div class="muted" style="margin-top:.3rem;font-size:.72rem;">영역 색상=위험도 · 숫자=실제 누적</div>',
                 unsafe_allow_html=True,
             )
 

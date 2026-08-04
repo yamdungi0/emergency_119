@@ -227,6 +227,13 @@ def load_run_metadata() -> dict:
     return json.loads((DATA_DIR / "run_metadata.json").read_text())
 
 
+@st.cache_data(show_spinner=False)
+def load_province_geojson() -> dict:
+    """시도 경계 GeoJSON (통계청 2018, southkorea/southkorea-maps 공개 데이터 기반).
+    17개 시도 폴리곤을 지도 렌더링 부담을 줄이기 위해 단순화(simplify)해 미리 저장해둔 것."""
+    return json.loads((DATA_DIR / "skorea_provinces_simple.geojson").read_text(encoding="utf-8"))
+
+
 def national_day_series(month_day: str) -> pd.DataFrame:
     """예측·실제 전국 합계, 3시간 슬롯별 — 둘 다 2024 합성 스트림 하나로만 계산."""
     panel = load_2024_panel()
