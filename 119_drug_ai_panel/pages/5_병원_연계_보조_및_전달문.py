@@ -314,6 +314,11 @@ with col_l, st.container(border=True):
 with col_m, st.container(border=True):
     st.markdown('<div class="section-title" style="font-size:1.05rem;">② 적합성 판단 근거</div>', unsafe_allow_html=True)
     rows = ["임상적합성", "자원가용성", "이동접근성"]
+    row_colors = {
+        "임상적합성": theme.CATEGORICAL["blue"],
+        "자원가용성": theme.CATEGORICAL["aqua"],
+        "이동접근성": theme.CATEGORICAL["orange"],
+    }
     header = "".join(f"<th style='padding:.3rem .5rem;text-align:center;'>{h['code']}</th>" for h in scored)
     html = [f"<table style='width:100%;border-collapse:collapse;font-size:.82rem;'>",
             f"<tr><th style='text-align:left;padding:.3rem .5rem;'>평가 항목</th>{header}</tr>"]
@@ -321,7 +326,7 @@ with col_m, st.container(border=True):
         cells = "".join(
             f"<td style='padding:.3rem .5rem;text-align:center;'>{h['parts'][label][1]:.2f}</td>" for h in scored
         )
-        html.append(f"<tr style='border-top:1px solid {theme.BORDER};'><td style='padding:.3rem .5rem;color:{theme.MUTED};'>{label}</td>{cells}</tr>")
+        html.append(f"<tr style='border-top:1px solid {theme.BORDER};'><td style='padding:.3rem .5rem;color:{row_colors[label]};font-weight:700;'>{label}</td>{cells}</tr>")
     verdict_cells = "".join(
         f"<td style='padding:.3rem .5rem;text-align:center;'>{theme.status_badge({'적합': 'good', '조건부 적합': 'warning', '부적합': 'critical'}[h['verdict']], h['verdict'])}</td>"
         for h in scored
