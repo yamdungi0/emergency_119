@@ -10,6 +10,7 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import nmc_api
 import theme
 from case_data import PATIENT_LOCATION
 from models import ConfirmedCase
@@ -24,25 +25,31 @@ st.set_page_config(
 theme.inject_css()
 theme.render_sidebar("병원연계")
 
-# 샘플 응급의료기관 후보 — 실서비스에서는 국립중앙의료원 응급의료기관 정보 API로 대체됩니다.
-# 화면3(AI 보조패널)의 기본 사건 위치(case_data.PATIENT_LOCATION, 관악구 신림동)와
-# 가까운 서울 시내 병원으로 좌표를 맞췄다.
-HOSPITALS = [
+# 샘플 응급의료기관 후보 — 국립중앙의료원 API 호출이 실패하면(키 없음, 네트워크 오류 등)
+# 이 3곳으로 대체된다. 화면3(AI 보조패널)의 기본 사건 위치(case_data.PATIENT_LOCATION,
+# 관악구 신림동)와 가까운 서울 시내 병원으로 좌표를 맞췄다.
+SAMPLE_HOSPITALS = [
     {
         "code": "A", "name": "A 지역응급의료센터", "tier": "지역응급의료센터", "lat": 37.5013, "lon": 126.9433,
-        "er_beds": 12, "icu_beds": 2, "ventilator": True, "drug_icu": True, "updated_min": 6,
+        "icu_beds": 2, "ventilator": True, "er_beds": 12, "updated_min": 6,
+        "phone": None, "address": None, "duty_hours_text": None,
     },
     {
         "code": "B", "name": "B 권역응급의료센터", "tier": "권역응급의료센터", "lat": 37.4563, "lon": 126.8952,
-        "er_beds": 6, "icu_beds": 1, "ventilator": True, "drug_icu": True, "updated_min": 3,
+        "icu_beds": 1, "ventilator": True, "er_beds": 6, "updated_min": 3,
+        "phone": None, "address": None, "duty_hours_text": None,
     },
     {
         "code": "C", "name": "C 응급의료기관", "tier": "지역응급의료기관", "lat": 37.4785, "lon": 126.9612,
-        "er_beds": 4, "icu_beds": 0, "ventilator": False, "drug_icu": False, "updated_min": 7,
+        "icu_beds": 0, "ventilator": False, "er_beds": 4, "updated_min": 7,
+        "phone": None, "address": None, "duty_hours_text": None,
     },
 ]
 
 STAGES = ["API상 후보", "전화 확인 중", "수용 확인", "최종 이송 결정"]
+
+# data.go.kr 응급의료기관 조회서비스 제외 대상 병원종별 — 응급실 연계와 무관.
+EXCLUDED_DIVS = {"치과병원", "한의원", "조산원"}
 
 
 def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -56,32 +63,107 @@ def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 def _eta_minutes(distance_km: float) -> int:
     # 도심 구급차 평균 이동속도를 시속 25km로 가정한 근사치 — 직선거리 기준이라
-    # 실제 도로 이동시간보다 짧게 나올 수 있음(샘플 데이터 한계).
+    # 실제 도로 이동시간보다 짧게 나올 수 있음.
     return max(3, round(distance_km / 25 * 60))
 
 
+def _duty_hours_text(start: str | None, end: str | None) -> str | None:
+    def fmt(t):
+        t = str(t).zfill(4)
+        return f"{t[:2]}:{t[2:]}"
+
+    if not start or not end:
+        return None
+    try:
+        return f"{fmt(start)}~{fmt(end)}"
+    except Exception:
+        return None
+
+
+def _minutes_since(hvidate) -> int | None:
+    """hvidate: 'YYYYMMDDHHMMSS' 형식 정수/문자열 — 국립중앙의료원 기준 갱신시각."""
+    if not hvidate:
+        return None
+    try:
+        dt = datetime.strptime(str(hvidate), "%Y%m%d%H%M%S")
+        return max(0, int((datetime.now() - dt).total_seconds() // 60))
+    except Exception:
+        return None
+
+
+@st.cache_data(ttl=180, show_spinner=False)
+def _build_real_hospitals(lat: float, lon: float) -> list[dict] | None:
+    """국립중앙의료원 API로 실제 병원 후보를 구성. 위치 조회나 병상 조회 중 하나라도
+    실패하면 None을 반환해 호출부가 샘플로 대체하게 한다."""
+    nearby = nmc_api.nearby_hospitals(lat, lon, n=10)
+    beds = nmc_api.all_bed_availability()
+    if not nearby or beds is None:
+        return None
+
+    candidates = [h for h in nearby if h.get("dutyDivName") not in EXCLUDED_DIVS][:5]
+    if not candidates:
+        return None
+
+    result = []
+    for i, h in enumerate(candidates):
+        hpid = h.get("hpid")
+        bed = beds.get(hpid)
+        icu_beds = None
+        ventilator = None
+        er_beds = None
+        updated_min = None
+        if bed:
+            icu_beds = bed.get("hvicc") if isinstance(bed.get("hvicc"), (int, float)) else None
+            er_beds = bed.get("hvec") if isinstance(bed.get("hvec"), (int, float)) else None
+            ventilator = {"Y": True, "N": False}.get(bed.get("hvventiayn"))
+            updated_min = _minutes_since(bed.get("hvidate"))
+        try:
+            lat_h, lon_h = float(h["latitude"]), float(h["longitude"])
+        except Exception:
+            continue
+        result.append({
+            "code": str(i + 1),
+            "name": h.get("dutyName", "이름 미상"),
+            "tier": h.get("dutyDivName"),
+            "lat": lat_h, "lon": lon_h,
+            "distance_km": round(float(h.get("distance", _haversine_km(lat, lon, lat_h, lon_h))), 1),
+            "icu_beds": icu_beds, "ventilator": ventilator, "er_beds": er_beds, "updated_min": updated_min,
+            "phone": h.get("dutyTel1"),
+            "address": h.get("dutyAddr"),
+            "duty_hours_text": _duty_hours_text(h.get("startTime"), h.get("endTime")),
+        })
+    return result or None
+
+
 def score_hospital(h: dict, require_icu: bool, require_vent: bool) -> dict:
+    known_icu = h["icu_beds"] is not None
+    known_vent = h["ventilator"] is not None
+    known_resource = h["er_beds"] is not None or known_icu
+
+    # 확인된 부족(중환자실 0병상, 인공호흡기 불가)만 감점한다 — 정보가 없는 것과
+    # "불가능한 것"을 같은 취급하지 않는다. 정보 없음은 전화 확인으로 넘긴다.
     clinical = 1.0
-    if require_icu and h["icu_beds"] <= 0:
+    if require_icu and known_icu and h["icu_beds"] <= 0:
         clinical -= 0.6
-    if require_vent and not h["ventilator"]:
+    if require_vent and known_vent and not h["ventilator"]:
         clinical -= 0.6
     clinical = max(0.0, clinical)
 
-    resource = min(1.0, (h["er_beds"] + h["icu_beds"] * 2) / 16)
+    if known_resource:
+        resource = min(1.0, (max(h["er_beds"] or 0, 0) + max(h["icu_beds"] or 0, 0) * 2) / 16)
+    else:
+        resource = 0.5  # 정보 없음 — 가점도 감점도 하지 않는 중립값
+
     access = max(0.0, 1 - h["eta_min"] / 30)
-    freshness = max(0.0, 1 - h["updated_min"] / 60)
-    tier_score = {"권역응급의료센터": 1.0, "지역응급의료센터": 0.85, "지역응급의료기관": 0.5}.get(h["tier"], 0.4)
 
     weighted = {
-        "임상적합성": (0.35, clinical),
+        "임상적합성": (0.40, clinical),
         "자원가용성": (0.25, resource),
-        "이동접근성": (0.20, access),
-        "정보최신성": (0.10, freshness),
-        "기관수준": (0.10, tier_score),
+        "이동접근성": (0.35, access),
     }
     total = sum(w * v for w, v in weighted.values())
-    hard_pass = not ((require_icu and h["icu_beds"] <= 0) or (require_vent and not h["ventilator"]))
+    hard_fail = (require_icu and known_icu and h["icu_beds"] <= 0) or (require_vent and known_vent and not h["ventilator"])
+    hard_pass = not hard_fail
     if not hard_pass:
         verdict = "부적합"
     elif total >= 0.75:
@@ -122,10 +204,15 @@ require_vent = (
     or (confirmed.spo2 is not None and confirmed.spo2 < 90)
 )
 
-hospitals_with_eta = []
-for h in HOSPITALS:
-    distance_km = _haversine_km(PATIENT_LOCATION["lat"], PATIENT_LOCATION["lon"], h["lat"], h["lon"])
-    hospitals_with_eta.append({**h, "distance_km": round(distance_km, 1), "eta_min": _eta_minutes(distance_km)})
+raw_hospitals = _build_real_hospitals(PATIENT_LOCATION["lat"], PATIENT_LOCATION["lon"])
+using_real_data = raw_hospitals is not None
+if not using_real_data:
+    raw_hospitals = [
+        {**h, "distance_km": round(_haversine_km(PATIENT_LOCATION["lat"], PATIENT_LOCATION["lon"], h["lat"], h["lon"]), 1)}
+        for h in SAMPLE_HOSPITALS
+    ]
+
+hospitals_with_eta = [{**h, "eta_min": _eta_minutes(h["distance_km"])} for h in raw_hospitals]
 
 scored = [{**h, **score_hospital(h, require_icu, require_vent)} for h in hospitals_with_eta]
 passed = sorted([h for h in scored if h["hard_pass"]], key=lambda x: -x["total"])
@@ -186,9 +273,12 @@ with col_l, st.container(border=True):
     )
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
-    def _tag(ok: bool, label: str) -> str:
-        color = theme.STATUS["good"] if ok else theme.MUTED
-        return f'<span style="color:{color};font-size:.74rem;margin-right:.6rem;">{"●" if ok else "○"} {label}</span>'
+    def _tag(state: bool | None, label_true: str, label_false: str = "") -> str:
+        if state is None:
+            return f'<span style="color:{theme.MUTED};font-size:.74rem;margin-right:.6rem;">◐ 확인 필요</span>'
+        color = theme.STATUS["good"] if state else theme.MUTED
+        label = label_true if state else (label_false or label_true)
+        return f'<span style="color:{color};font-size:.74rem;margin-right:.6rem;">{"●" if state else "○"} {label}</span>'
 
     for h in scored:
         badge_kind = {"적합": "good", "조건부 적합": "warning", "부적합": "critical"}[h["verdict"]]
@@ -198,15 +288,31 @@ with col_l, st.container(border=True):
             f'{theme.status_badge(badge_kind, h["verdict"])}</div>',
             unsafe_allow_html=True,
         )
-        icu_tag = _tag(h["icu_beds"] > 0, f"중환자실 {h['icu_beds']}병상")
-        vent_tag = _tag(h["ventilator"], "인공호흡기")
-        drug_icu_tag = _tag(h["drug_icu"], "약물중환자 대응")
-        st.markdown(f'<div style="margin-bottom:.5rem;">{icu_tag}{vent_tag}{drug_icu_tag}</div>', unsafe_allow_html=True)
-    st.caption("이동 시간은 실시간 교통 상황에 따라 변동될 수 있습니다(샘플 데이터).")
+        icu_state = None if h["icu_beds"] is None else h["icu_beds"] > 0
+        icu_label = f'일반중환자실 {h["icu_beds"]}병상' if h["icu_beds"] is not None else "일반중환자실"
+        icu_tag = _tag(icu_state, icu_label)
+        vent_tag = _tag(h["ventilator"], "인공호흡기 가능")
+        st.markdown(f'<div style="margin-bottom:.1rem;">{icu_tag}{vent_tag}</div>', unsafe_allow_html=True)
+        detail_bits = []
+        if h.get("phone"):
+            detail_bits.append(h["phone"])
+        if h.get("duty_hours_text"):
+            detail_bits.append(f"진료 {h['duty_hours_text']}")
+        if h["updated_min"] is not None:
+            detail_bits.append(f"병상정보 {h['updated_min']}분 전 갱신")
+        if detail_bits:
+            st.markdown(f'<div class="small-muted" style="margin-bottom:.5rem;">{" · ".join(detail_bits)}</div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div style="margin-bottom:.5rem;"></div>', unsafe_allow_html=True)
+
+    if using_real_data:
+        st.caption("국립중앙의료원 응급의료기관 정보 API(실시간)로 조회한 후보입니다. 이동 시간은 직선거리 기반 추정치입니다.")
+    else:
+        st.caption("국립중앙의료원 API 연결에 실패해 샘플 병원 3곳으로 대체 표시 중입니다. 이동 시간은 직선거리 기반 추정치입니다.")
 
 with col_m, st.container(border=True):
     st.markdown('<div class="section-title" style="font-size:1.05rem;">② 적합성 판단 근거</div>', unsafe_allow_html=True)
-    rows = ["임상적합성", "자원가용성", "이동접근성", "정보최신성", "기관수준"]
+    rows = ["임상적합성", "자원가용성", "이동접근성"]
     header = "".join(f"<th style='padding:.3rem .5rem;text-align:center;'>{h['code']}</th>" for h in scored)
     html = [f"<table style='width:100%;border-collapse:collapse;font-size:.82rem;'>",
             f"<tr><th style='text-align:left;padding:.3rem .5rem;'>평가 항목</th>{header}</tr>"]
@@ -215,14 +321,6 @@ with col_m, st.container(border=True):
             f"<td style='padding:.3rem .5rem;text-align:center;'>{h['parts'][label][1]:.2f}</td>" for h in scored
         )
         html.append(f"<tr style='border-top:1px solid {theme.BORDER};'><td style='padding:.3rem .5rem;color:{theme.MUTED};'>{label}</td>{cells}</tr>")
-    drug_icu_cells = "".join(
-        f"<td style='padding:.3rem .5rem;text-align:center;'>{'✓' if h['drug_icu'] else '—'}</td>" for h in scored
-    )
-    html.append(
-        f"<tr style='border-top:1px solid {theme.BORDER};'>"
-        f"<td style='padding:.3rem .5rem;color:{theme.MUTED};'>약물중환자 대응<span style='font-size:.7rem;'>(참고)</span></td>"
-        f"{drug_icu_cells}</tr>"
-    )
     verdict_cells = "".join(
         f"<td style='padding:.3rem .5rem;text-align:center;'>{theme.status_badge({'적합': 'good', '조건부 적합': 'warning', '부적합': 'critical'}[h['verdict']], h['verdict'])}</td>"
         for h in scored
@@ -265,7 +363,13 @@ with col_r:
             st.success(f"이송 결정 확정 — 출발 {departed.strftime('%H:%M')} · 예상 도착 {arrival.strftime('%H:%M')}")
             st.caption("구급활동 기록 초안이 자동 저장됩니다.")
 
-st.caption(
-    "본 코드는 공모전 MVP 시연용입니다. 병원 후보·병상정보는 샘플이며, 실제 배포 시 "
-    "국립중앙의료원 응급의료기관 정보 API로 대체해야 합니다."
-)
+if using_real_data:
+    st.caption(
+        "병원 후보·병상정보는 국립중앙의료원 응급의료기관 정보 API(실시간)입니다. 인공호흡기·일반중환자실 병상 항목만 "
+        "API가 제공하는 값으로 반영했으며, 그 외 세부 수용 조건은 전화로 반드시 재확인해야 합니다."
+    )
+else:
+    st.caption(
+        "본 코드는 공모전 MVP 시연용입니다. 국립중앙의료원 API 연결에 실패해 병원 후보·병상정보는 샘플로 "
+        "대체되었습니다."
+    )
