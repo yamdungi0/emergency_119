@@ -138,6 +138,15 @@ def inject_css() -> None:
             background: rgba(255,255,255,0.16);
             font-weight: 700;
         }}
+        /* Streamlit이 자동 생성하는 페이지 목록(stSidebarNav)은 항상 사이드바
+           맨 위, 로고보다 먼저 렌더링된다 — DOM 순서를 바꿀 수 없으니 flex
+           order로 시각 순서만 "로고 → 목차 → 하단상태"로 뒤집는다. */
+        section[data-testid="stSidebar"] > div:first-child {{
+            display: flex;
+            flex-direction: column;
+        }}
+        [data-testid="stSidebarUserContent"] {{ order: 1; }}
+        [data-testid="stSidebarNav"] {{ order: 2; }}
         .block-container {{
             padding-top: 2.2rem;
             padding-bottom: 1.2rem;
@@ -222,8 +231,8 @@ def inject_css() -> None:
         .warning-box {{border:1px solid #ecb9bb; background:#fdf4f4; border-radius:10px; padding:.8rem;}}
         .warning-title {{color:{RED}; font-size:1.02rem; font-weight:800; margin-bottom:.4rem;}}
         .warning-item {{padding:.3rem 0; font-weight:600;}}
-        .mapping-box {{border:1px solid {CARD_BORDER}; background:{CARD_BG}; border-radius:10px; padding:.8rem;}}
-        .map-row {{display:flex; justify-content:space-between; padding:.3rem 0; border-bottom:1px solid {PAGE_BG};}}
+        .mapping-box {{border:1px solid {CARD_BORDER}; background:{CARD_BG}; border-radius:10px; padding:.8rem; margin-bottom:.5rem;}}
+        .map-row {{display:flex; justify-content:space-between; padding:.4rem 0; border-bottom:1px solid {PAGE_BG};}}
         .map-row:last-child {{border-bottom:none;}}
         .map-name {{color:{TEXT_SECONDARY};}}
         .map-value {{color:{NAVY}; font-weight:750;}}

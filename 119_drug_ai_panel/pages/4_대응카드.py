@@ -80,81 +80,75 @@ def _pick_card(confirmed: ConfirmedCase) -> dict:
     return DEFAULT_CARD
 
 
-render_header = f"""
-<div class="topbar"><div>
-<span class="brand"><span class="em">119</span>약물안전 코파일럿</span>
-<span class="title">화면 4. 약물 대응카드 및 의료지도</span>
-</div>
-<div class="pill">● Pre-KTAS 결과는 기존 시스템 값 사용</div>
-<div class="small-muted">{datetime.now().strftime('%Y.%m.%d %H:%M')}</div>
-</div>
-"""
-st.markdown(render_header, unsafe_allow_html=True)
+st.markdown(
+    f"""
+    <div class="topbar"><div>
+    <span class="brand"><span class="em">119</span>약물안전 코파일럿</span>
+    <span class="title">화면 4. 약물 대응카드 및 의료지도</span>
+    </div>
+    <div class="pill">● Pre-KTAS 결과는 기존 시스템 값 사용</div>
+    <div class="small-muted">{datetime.now().strftime('%Y.%m.%d %H:%M')}</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 confirmed: ConfirmedCase | None = st.session_state.get("confirmed_case")
 if confirmed is None:
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
-    st.info("먼저 화면 3. 약물 AI 보조패널에서 사건을 분석하고 '확인 후 저장'까지 진행하세요.")
-    st.markdown("</div>", unsafe_allow_html=True)
+    with st.container(border=True):
+        st.info("먼저 화면 3. 약물 AI 보조패널에서 사건을 분석하고 '확인 후 저장'까지 진행하세요.")
     st.stop()
 
 age_group, sex = st.session_state.get("patient_age_sex", ("50대", "여성"))
 age_group, sex = age_group or "50대", sex or "여성"
 card = _pick_card(confirmed)
 
-st.markdown('<div class="panel">', unsafe_allow_html=True)
-s1, s2, s3, s4, s5 = st.columns([1.1, 1.6, 0.9, 0.9, 1.1])
-s1.markdown(f'<div class="card-label">환자 정보</div><div class="card-value">{age_group} {sex}</div>', unsafe_allow_html=True)
-s2.markdown(f'<div class="card-label">의심 상황</div><div class="card-value">{card["title"]}</div>', unsafe_allow_html=True)
-conscious_txt = {"A": "정상", "V": "음성 반응", "P": "통증 반응", "U": "반응 없음", "미상": "확인 필요"}[confirmed.consciousness]
-s3.markdown(f'<div class="card-label">의식(AVPU)</div><div class="card-value">{confirmed.consciousness} · {conscious_txt}</div>', unsafe_allow_html=True)
-breathing_abn = (confirmed.respiratory_rate is not None and (confirmed.respiratory_rate < 10 or confirmed.respiratory_rate > 30)) or \
-                (confirmed.spo2 is not None and confirmed.spo2 < 94)
-breathing_txt = "이상 의심" if breathing_abn else ("정상" if confirmed.respiratory_rate is not None else "확인 필요")
-s4.markdown(f'<div class="card-label">호흡</div><div class="card-value">{breathing_txt}</div>', unsafe_allow_html=True)
-s5.markdown(theme.status_badge(card["severity"], f"위험도 {card['severity']}"), unsafe_allow_html=True)
-st.markdown("</div>", unsafe_allow_html=True)
+with st.container(border=True):
+    s1, s2, s3, s4, s5 = st.columns([1.1, 1.6, 0.9, 0.9, 1.1])
+    s1.markdown(f'<div class="card-label">환자 정보</div><div class="card-value">{age_group} {sex}</div>', unsafe_allow_html=True)
+    s2.markdown(f'<div class="card-label">의심 상황</div><div class="card-value">{card["title"]}</div>', unsafe_allow_html=True)
+    conscious_txt = {"A": "정상", "V": "음성 반응", "P": "통증 반응", "U": "반응 없음", "미상": "확인 필요"}[confirmed.consciousness]
+    s3.markdown(f'<div class="card-label">의식(AVPU)</div><div class="card-value">{confirmed.consciousness} · {conscious_txt}</div>', unsafe_allow_html=True)
+    breathing_abn = (confirmed.respiratory_rate is not None and (confirmed.respiratory_rate < 10 or confirmed.respiratory_rate > 30)) or \
+                    (confirmed.spo2 is not None and confirmed.spo2 < 94)
+    breathing_txt = "이상 의심" if breathing_abn else ("정상" if confirmed.respiratory_rate is not None else "확인 필요")
+    s4.markdown(f'<div class="card-label">호흡</div><div class="card-value">{breathing_txt}</div>', unsafe_allow_html=True)
+    s5.markdown(theme.status_badge(card["severity"], f"위험도 {card['severity']}"), unsafe_allow_html=True)
 
 left, right = st.columns([1.3, 1], gap="large")
 
 with left:
     c1, c2 = st.columns(2)
-    with c1:
-        st.markdown('<div class="panel">', unsafe_allow_html=True)
+    with c1, st.container(border=True):
         st.markdown("**① 즉시 확인**")
         for item in card["immediate"]:
             st.checkbox(item, key=f"imm_{hash(item)}")
-        st.markdown("</div>", unsafe_allow_html=True)
-    with c2:
-        st.markdown('<div class="panel">', unsafe_allow_html=True)
+    with c2, st.container(border=True):
         st.markdown("**② 현장안전 및 추가확인**")
         for item in card["scene"]:
             st.checkbox(item, key=f"scene_{hash(item)}")
-        st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown(
-        f"""
-        <div class="panel">
-        <b style="color:{theme.STATUS['critical']};">주의 및 금지사항</b>
-        <div style="margin-top:.4rem;">
-        ✕ 억지로 토하게 하지 않는다<br>
-        ✕ 약물 확인 때문에 이송을 지연하지 않는다<br>
-        ✕ 의식·호흡·순환 평가보다 약물 확인을 우선하지 않는다
-        </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    with st.container(border=True):
+        st.markdown(
+            f"""
+            <b style="color:{theme.STATUS['critical']};">주의 및 금지사항</b>
+            <div style="margin-top:.4rem;">
+            ✕ 억지로 토하게 하지 않는다<br>
+            ✕ 약물 확인 때문에 이송을 지연하지 않는다<br>
+            ✕ 의식·호흡·순환 평가보다 약물 확인을 우선하지 않는다
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
-    st.markdown("**지침 근거**")
-    for src in GUIDELINE_SOURCES:
-        st.markdown(f"· {src}")
-    st.caption(
-        "카드 문장은 사전 검토·승인된 지침 문장이며, 생성형 AI는 순서 정리와 요약에만 사용됩니다. "
-        "이 MVP는 지침 원문 페이지 인용 기능은 포함하지 않습니다."
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
+    with st.container(border=True):
+        st.markdown("**지침 근거**")
+        for src in GUIDELINE_SOURCES:
+            st.markdown(f"· {src}")
+        st.caption(
+            "카드 문장은 사전 검토·승인된 지침 문장이며, 생성형 AI는 순서 정리와 요약에만 사용됩니다. "
+            "이 MVP는 지침 원문 페이지 인용 기능은 포함하지 않습니다."
+        )
 
 with right:
     conditions = {
@@ -165,35 +159,32 @@ with right:
         "이송기관 선정이 어려움": False,
     }
     met = sum(conditions.values())
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
-    st.markdown(f"**의료지도 검토 조건** · {met}개 충족")
-    g1, g2 = st.columns(2)
-    for i, (label, ok) in enumerate(conditions.items()):
-        dot = theme.STATUS["critical"] if ok else theme.TEXT_MUTED
-        (g1 if i % 2 == 0 else g2).markdown(
-            f'<div style="margin:.25rem 0;"><span style="color:{dot};">●</span> {label}</div>',
+    with st.container(border=True):
+        st.markdown(f"**의료지도 검토 조건** · {met}개 충족")
+        g1, g2 = st.columns(2)
+        for i, (label, ok) in enumerate(conditions.items()):
+            dot = theme.STATUS["critical"] if ok else theme.TEXT_MUTED
+            (g1 if i % 2 == 0 else g2).markdown(
+                f'<div style="margin:.25rem 0;"><span style="color:{dot};">●</span> {label}</div>',
+                unsafe_allow_html=True,
+            )
+
+    with st.container(border=True):
+        st.markdown("**영상의료지도 연계**")
+        st.markdown(
+            f'<span class="badge" style="background:{theme.CATEGORICAL["aqua"]};">● 연결 가능</span> '
+            '<span class="muted">(MVP 시연 — 실제 화상연결 아님)</span>',
             unsafe_allow_html=True,
         )
-    st.markdown("</div>", unsafe_allow_html=True)
+        st.caption("영상의료지도를 통해 약물 확인 및 처치 지도를 받을 수 있습니다.")
+        st.button("의료지도 요청", type="primary", use_container_width=True, disabled=met < 2,
+                   help=None if met >= 2 else "검토 조건이 2개 이상 충족되면 활성화됩니다.")
 
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
-    st.markdown("**영상의료지도 연계**")
-    st.markdown(
-        f'<span class="badge" style="background:{theme.CATEGORICAL["aqua"]};">● 연결 가능</span> '
-        '<span class="muted">(MVP 시연 — 실제 화상연결 아님)</span>',
-        unsafe_allow_html=True,
-    )
-    st.caption("영상의료지도를 통해 약물 확인 및 처치 지도를 받을 수 있습니다.")
-    st.button("의료지도 요청", type="primary", use_container_width=True, disabled=met < 2,
-               help=None if met >= 2 else "검토 조건이 2개 이상 충족되면 활성화됩니다.")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
-    st.markdown("**이송기관 요구조건**")
-    st.markdown(f'<div class="muted">기관 수준</div><div style="font-weight:700;">{card["tier"]}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="muted">중환자실</div><div style="font-weight:700;">{card["icu"]}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="muted">인공호흡기</div><div style="font-weight:700;">{card["vent"]}</div>', unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+    with st.container(border=True):
+        st.markdown("**이송기관 요구조건**")
+        st.markdown(f'<div class="muted">기관 수준</div><div style="font-weight:700;">{card["tier"]}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="muted">중환자실</div><div style="font-weight:700;">{card["icu"]}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="muted">인공호흡기</div><div style="font-weight:700;">{card["vent"]}</div>', unsafe_allow_html=True)
 
     if st.button("확인 완료", use_container_width=True):
         st.toast("확인 항목이 구급활동기록에 반영됩니다.")

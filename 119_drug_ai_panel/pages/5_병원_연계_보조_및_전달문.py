@@ -91,29 +91,24 @@ def score_hospital(h: dict, require_icu: bool, require_vent: bool) -> dict:
     return {"total": total, "parts": weighted, "hard_pass": hard_pass, "verdict": verdict}
 
 
-def render_header() -> None:
-    st.markdown(
-        f"""
-        <div class="topbar">
-          <div>
-            <span class="brand"><span class="em">119</span>약물안전 코파일럿</span>
-            <span class="title">화면 5. 병원 연계 보조 및 전달문</span>
-          </div>
-          <div class="pill">● 병원 추천이 아닌 적합성 설명과 전달문 보조</div>
-          <div class="small-muted">{datetime.now().strftime('%Y.%m.%d %H:%M')}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-render_header()
+st.markdown(
+    f"""
+    <div class="topbar">
+      <div>
+        <span class="brand"><span class="em">119</span>약물안전 코파일럿</span>
+        <span class="title">화면 5. 병원 연계 보조 및 전달문</span>
+      </div>
+      <div class="pill">● 병원 추천이 아닌 적합성 설명과 전달문 보조</div>
+      <div class="small-muted">{datetime.now().strftime('%Y.%m.%d %H:%M')}</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 confirmed: ConfirmedCase | None = st.session_state.get("confirmed_case")
 if confirmed is None:
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
-    st.info("먼저 화면 3. 약물 AI 보조패널에서 사건을 분석하고 '확인 후 저장'까지 진행하세요.")
-    st.markdown("</div>", unsafe_allow_html=True)
+    with st.container(border=True):
+        st.info("먼저 화면 3. 약물 AI 보조패널에서 사건을 분석하고 '확인 후 저장'까지 진행하세요.")
     st.stop()
 
 age_group, sex = st.session_state.get("patient_age_sex", ("50대", "여성"))
@@ -141,36 +136,33 @@ stage = st.session_state["transport_stage"]
 hospital = st.session_state.get("selected_hospital", top["name"] if top else None)
 eta = st.session_state.get("selected_eta", top["eta_min"] if top else 0)
 
-st.markdown('<div class="panel">', unsafe_allow_html=True)
-p1, p2, p3, p4 = st.columns([1, 1.4, 0.8, 0.8])
-p1.markdown(f'<div class="card-label">환자 정보</div><div class="card-value">{age_group} {sex}</div>', unsafe_allow_html=True)
-p2.markdown(
-    f'<div class="card-label">의심 상황</div><div class="card-value">'
-    f'{confirmed.drug_group or confirmed.suspected_drug or "확인 중"} 관련 응급</div>',
-    unsafe_allow_html=True,
-)
-p3.markdown(f'<div class="card-label">의식(AVPU)</div><div class="card-value">{confirmed.consciousness}</div>', unsafe_allow_html=True)
-rr_spo2 = f"{confirmed.respiratory_rate or '?'}/분 · {confirmed.spo2 or '?'}%"
-p4.markdown(f'<div class="card-label">RR·SpO₂</div><div class="card-value">{rr_spo2}</div>', unsafe_allow_html=True)
-st.caption(f"현재 위치: {PATIENT_LOCATION['onset_place']} · {PATIENT_LOCATION['address']} ({PATIENT_LOCATION['lat']:.4f}, {PATIENT_LOCATION['lon']:.4f})")
-st.markdown("</div>", unsafe_allow_html=True)
-
-st.markdown('<div class="panel" style="margin-top:.6rem;">', unsafe_allow_html=True)
-cols = st.columns(len(STAGES))
-for i, (col, label) in enumerate(zip(cols, STAGES)):
-    color = theme.BLUE if i <= stage else theme.MUTED
-    col.markdown(
-        f'<div style="text-align:center;"><div style="color:{color};font-weight:800;">{i + 1}. {label}</div>'
-        f'<div style="height:4px;background:{color};border-radius:2px;margin-top:.4rem;"></div></div>',
+with st.container(border=True):
+    p1, p2, p3, p4 = st.columns([1, 1.4, 0.8, 0.8])
+    p1.markdown(f'<div class="card-label">환자 정보</div><div class="card-value">{age_group} {sex}</div>', unsafe_allow_html=True)
+    p2.markdown(
+        f'<div class="card-label">의심 상황</div><div class="card-value">'
+        f'{confirmed.drug_group or confirmed.suspected_drug or "확인 중"} 관련 응급</div>',
         unsafe_allow_html=True,
     )
-st.caption("API상 가용병상이 있어도 실제 수용이 확정된 것은 아닙니다. 각 단계는 전화 확인 결과로만 넘어갑니다.")
-st.markdown("</div>", unsafe_allow_html=True)
+    p3.markdown(f'<div class="card-label">의식(AVPU)</div><div class="card-value">{confirmed.consciousness}</div>', unsafe_allow_html=True)
+    rr_spo2 = f"{confirmed.respiratory_rate or '?'}/분 · {confirmed.spo2 or '?'}%"
+    p4.markdown(f'<div class="card-label">RR·SpO₂</div><div class="card-value">{rr_spo2}</div>', unsafe_allow_html=True)
+    st.caption(f"현재 위치: {PATIENT_LOCATION['onset_place']} · {PATIENT_LOCATION['address']} ({PATIENT_LOCATION['lat']:.4f}, {PATIENT_LOCATION['lon']:.4f})")
+
+with st.container(border=True):
+    cols = st.columns(len(STAGES))
+    for i, (col, label) in enumerate(zip(cols, STAGES)):
+        color = theme.BLUE if i <= stage else theme.MUTED
+        col.markdown(
+            f'<div style="text-align:center;"><div style="color:{color};font-weight:800;">{i + 1}. {label}</div>'
+            f'<div style="height:4px;background:{color};border-radius:2px;margin-top:.4rem;"></div></div>',
+            unsafe_allow_html=True,
+        )
+    st.caption("API상 가용병상이 있어도 실제 수용이 확정된 것은 아닙니다. 각 단계는 전화 확인 결과로만 넘어갑니다.")
 
 col_l, col_m, col_r = st.columns([1.1, 1.3, 1], gap="small")
 
-with col_l:
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
+with col_l, st.container(border=True):
     st.markdown('<div class="section-title" style="font-size:1.05rem;">① 후보 의료기관</div>', unsafe_allow_html=True)
     fig = go.Figure()
     fig.add_trace(go.Scattermapbox(
@@ -194,6 +186,10 @@ with col_l:
     )
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
+    def _tag(ok: bool, label: str) -> str:
+        color = theme.STATUS["good"] if ok else theme.MUTED
+        return f'<span style="color:{color};font-size:.74rem;margin-right:.6rem;">{"●" if ok else "○"} {label}</span>'
+
     for h in scored:
         badge_kind = {"적합": "good", "조건부 적합": "warning", "부적합": "critical"}[h["verdict"]]
         st.markdown(
@@ -202,20 +198,13 @@ with col_l:
             f'{theme.status_badge(badge_kind, h["verdict"])}</div>',
             unsafe_allow_html=True,
         )
-
-        def _tag(ok: bool, label: str) -> str:
-            color = theme.STATUS["good"] if ok else theme.MUTED
-            return f'<span style="color:{color};font-size:.74rem;margin-right:.6rem;">{"●" if ok else "○"} {label}</span>'
-
         icu_tag = _tag(h["icu_beds"] > 0, f"중환자실 {h['icu_beds']}병상")
         vent_tag = _tag(h["ventilator"], "인공호흡기")
         drug_icu_tag = _tag(h["drug_icu"], "약물중환자 대응")
         st.markdown(f'<div style="margin-bottom:.5rem;">{icu_tag}{vent_tag}{drug_icu_tag}</div>', unsafe_allow_html=True)
     st.caption("이동 시간은 실시간 교통 상황에 따라 변동될 수 있습니다(샘플 데이터).")
-    st.markdown("</div>", unsafe_allow_html=True)
 
-with col_m:
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
+with col_m, st.container(border=True):
     st.markdown('<div class="section-title" style="font-size:1.05rem;">② 적합성 판단 근거</div>', unsafe_allow_html=True)
     rows = ["임상적합성", "자원가용성", "이동접근성", "정보최신성", "기관수준"]
     header = "".join(f"<th style='padding:.3rem .5rem;text-align:center;'>{h['code']}</th>" for h in scored)
@@ -242,24 +231,21 @@ with col_m:
     html.append("</table>")
     st.markdown("".join(html), unsafe_allow_html=True)
     st.caption("※ 본 판단은 현재 확보된 정보 기반 보조 판단이며, 실제 수용 가능 여부는 전화 확인을 통해 최종 결정됩니다.")
-    st.markdown("</div>", unsafe_allow_html=True)
 
 with col_r:
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title" style="font-size:1.05rem;">③ 병원 전달문 자동생성</div>', unsafe_allow_html=True)
-    if hospital:
-        handoff = make_hospital_message(confirmed, age_group, sex)
-        st.text_area("자동 생성 (수정 가능)", value=handoff, height=200, key="handoff_text")
-        st.caption(f"수신 병원: {hospital} · 생성 시각 {datetime.now().strftime('%H:%M')}")
-    else:
-        st.caption("적합 후보가 없어 전달문을 생성할 수 없습니다.")
-    st.markdown("</div>", unsafe_allow_html=True)
+    with st.container(border=True):
+        st.markdown('<div class="section-title" style="font-size:1.05rem;">③ 병원 전달문 자동생성</div>', unsafe_allow_html=True)
+        if hospital:
+            handoff = make_hospital_message(confirmed, age_group, sex)
+            st.text_area("자동 생성 (수정 가능)", value=handoff, height=200, key="handoff_text")
+            st.caption(f"수신 병원: {hospital} · 생성 시각 {datetime.now().strftime('%H:%M')}")
+        else:
+            st.caption("적합 후보가 없어 전달문을 생성할 수 없습니다.")
 
-    st.markdown('<div class="panel" style="margin-top:.6rem;">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title" style="font-size:1.05rem;">연락 기록</div>', unsafe_allow_html=True)
-    called_at = st.session_state.get("call_started_at")
-    st.markdown(f"**{hospital or '-'}** — 연결시각 {called_at.strftime('%H:%M') if called_at else '-'} · 결과 {STAGES[stage]}")
-    st.markdown("</div>", unsafe_allow_html=True)
+    with st.container(border=True):
+        st.markdown('<div class="section-title" style="font-size:1.05rem;">연락 기록</div>', unsafe_allow_html=True)
+        called_at = st.session_state.get("call_started_at")
+        st.markdown(f"**{hospital or '-'}** — 연결시각 {called_at.strftime('%H:%M') if called_at else '-'} · 결과 {STAGES[stage]}")
 
     b1, b2, b3 = st.columns(3)
     if b1.button("수용 요청", type="primary", use_container_width=True, disabled=not top or stage != 0):
@@ -275,10 +261,9 @@ with col_r:
     if stage == 3:
         departed = st.session_state.get("departed_at", datetime.now())
         arrival = departed + timedelta(minutes=eta)
-        st.markdown('<div class="panel" style="margin-top:.6rem;">', unsafe_allow_html=True)
-        st.success(f"이송 결정 확정 — 출발 {departed.strftime('%H:%M')} · 예상 도착 {arrival.strftime('%H:%M')}")
-        st.caption("구급활동 기록 초안이 자동 저장됩니다.")
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st.success(f"이송 결정 확정 — 출발 {departed.strftime('%H:%M')} · 예상 도착 {arrival.strftime('%H:%M')}")
+            st.caption("구급활동 기록 초안이 자동 저장됩니다.")
 
 st.caption(
     "본 코드는 공모전 MVP 시연용입니다. 병원 후보·병상정보는 샘플이며, 실제 배포 시 "
