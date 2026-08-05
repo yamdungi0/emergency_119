@@ -3,3 +3,7 @@ __pycache__/
 *.pyc
 .streamlit/secrets.toml
 .DS_Store
+
+# 119_drug_ai_panel — OpenAI 키·감사로그 DB는 절대 커밋하지 않음
+119_drug_ai_panel/.env
+119_drug_ai_panel/data/*.db
