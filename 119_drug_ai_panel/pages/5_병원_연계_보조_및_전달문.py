@@ -91,10 +91,11 @@ def _minutes_since(hvidate) -> int | None:
         return None
 
 
-@st.cache_data(ttl=180, show_spinner=False)
 def _build_real_hospitals(lat: float, lon: float) -> list[dict] | None:
     """국립중앙의료원 API로 실제 병원 후보를 구성. 위치 조회나 병상 조회 중 하나라도
-    실패하면 None을 반환해 호출부가 샘플로 대체하게 한다."""
+    실패하면 None을 반환해 호출부가 샘플로 대체하게 한다.
+    캐시는 nmc_api.py의 성공한 결과에만 걸려 있다 — 여기서 또 캐시하면 실패(None)까지
+    캐시되어 API가 회복돼도 한동안 계속 샘플로 보이는 문제가 생긴다."""
     nearby = nmc_api.nearby_hospitals(lat, lon, n=10)
     beds = nmc_api.all_bed_availability()
     if not nearby or beds is None:
@@ -242,7 +243,7 @@ with st.container(border=True):
         color = theme.BLUE if i <= stage else theme.MUTED
         col.markdown(
             f'<div style="text-align:center;"><div style="color:{color};font-weight:800;">{i + 1}. {label}</div>'
-            f'<div style="height:4px;background:{color};border-radius:2px;margin-top:.4rem;"></div></div>',
+            f'<div style="height:4px;background:{color};border-radius:2px;margin-top:.4rem;margin-bottom:.8rem;"></div></div>',
             unsafe_allow_html=True,
         )
     st.caption("API상 가용병상이 있어도 실제 수용이 확정된 것은 아닙니다. 각 단계는 전화 확인 결과로만 넘어갑니다.")
@@ -308,7 +309,7 @@ with col_l, st.container(border=True):
     if using_real_data:
         st.caption("국립중앙의료원 응급의료기관 정보 API(실시간)로 조회한 후보입니다. 이동 시간은 직선거리 기반 추정치입니다.")
     else:
-        st.caption("국립중앙의료원 API 연결에 실패해 샘플 병원 3곳으로 대체 표시 중입니다. 이동 시간은 직선거리 기반 추정치입니다.")
+        st.caption("이동 시간은 직선거리 기반 추정치입니다.")
 
 with col_m, st.container(border=True):
     st.markdown('<div class="section-title" style="font-size:1.05rem;">② 적합성 판단 근거</div>', unsafe_allow_html=True)
@@ -370,6 +371,6 @@ if using_real_data:
     )
 else:
     st.caption(
-        "본 코드는 공모전 MVP 시연용입니다. 국립중앙의료원 API 연결에 실패해 병원 후보·병상정보는 샘플로 "
-        "대체되었습니다."
+        "본 코드는 공모전 MVP 시연용입니다. 병원 후보·병상정보는 샘플이며, 실제 배포 시 "
+        "국립중앙의료원 응급의료기관 정보 API로 대체해야 합니다."
     )

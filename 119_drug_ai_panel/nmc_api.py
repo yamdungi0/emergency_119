@@ -38,19 +38,30 @@ def _call(op: str, params: dict, num_of_rows: int = 10) -> list[dict]:
 
 
 @st.cache_data(ttl=300, show_spinner=False)
+def _nearby_hospitals_raw(lat: float, lon: float, n: int) -> list[dict]:
+    return _call("getEgytLcinfoInqire", {"WGS84_LAT": lat, "WGS84_LON": lon}, n)
+
+
 def nearby_hospitals(lat: float, lon: float, n: int = 10) -> list[dict] | None:
-    """위경도 기준 가까운 응급의료기관 목록(거리순). 실패 시 None."""
+    """위경도 기준 가까운 응급의료기관 목록(거리순). 실패 시 None.
+    성공한 결과만 캐시한다 — 실패까지 캐시하면 한 번의 일시적 오류로 몇 분간
+    계속 샘플 데이터가 보이게 된다."""
     try:
-        return _call("getEgytLcinfoInqire", {"WGS84_LAT": lat, "WGS84_LON": lon}, n)
+        return _nearby_hospitals_raw(lat, lon, n)
     except Exception:
         return None
 
 
 @st.cache_data(ttl=180, show_spinner=False)
+def _all_bed_availability_raw() -> dict[str, dict]:
+    items = _call("getEmrrmRltmUsefulSckbdInfoInqire", {}, num_of_rows=500)
+    return {it["hpid"]: it for it in items if it.get("hpid")}
+
+
 def all_bed_availability() -> dict[str, dict] | None:
-    """전국 응급실 실시간 가용병상 정보 — hpid를 키로 하는 dict. 실패 시 None."""
+    """전국 응급실 실시간 가용병상 정보 — hpid를 키로 하는 dict. 실패 시 None.
+    성공한 결과만 캐시한다(위와 동일한 이유)."""
     try:
-        items = _call("getEmrrmRltmUsefulSckbdInfoInqire", {}, num_of_rows=500)
+        return _all_bed_availability_raw()
     except Exception:
         return None
-    return {it["hpid"]: it for it in items if it.get("hpid")}
