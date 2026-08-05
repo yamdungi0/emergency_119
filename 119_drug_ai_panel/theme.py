@@ -120,6 +120,10 @@ def inject_css() -> None:
         section[data-testid="stSidebar"] {{
             background: {SIDEBAR_BG};
             border-right: none;
+            min-width: 300px !important;
+        }}
+        section[data-testid="stSidebar"] > div {{
+            min-width: 300px !important;
         }}
         section[data-testid="stSidebar"] * {{
             color: #ffffff;
