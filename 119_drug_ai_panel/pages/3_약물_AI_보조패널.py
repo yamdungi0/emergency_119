@@ -47,7 +47,6 @@ def value_or_unknown(value, unknown="미상"):
 
 
 def render_header() -> None:
-    enabled_text = "OpenAI 연동" if is_enabled() else "규칙 기반 데모"
     st.markdown(
         f"""
         <div class="topbar">
@@ -56,7 +55,7 @@ def render_header() -> None:
             <span class="title">화면 3. 약물 AI 보조패널</span>
           </div>
           <div class="pill">● 기존 e-Triage를 대체하지 않고 약물사고 특화 AI 보조기능을 추가</div>
-          <div class="small-muted">{datetime.now().strftime('%Y.%m.%d %H:%M')} · {enabled_text}</div>
+          <div class="small-muted">{datetime.now().strftime('%Y.%m.%d %H:%M')}</div>
         </div>
         """,
         unsafe_allow_html=True,
