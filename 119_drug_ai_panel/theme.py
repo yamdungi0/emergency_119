@@ -250,6 +250,13 @@ def inject_css() -> None:
             color: {NAVY};
         }}
         button[kind="primary"] {{ background:{NAVY} !important; border-color:{NAVY} !important; color:#fff !important;}}
+        /* Streamlit은 버튼 글자를 <p>/<div>로 한 번 더 감싸는데, 그 자식 엘리먼트가
+           위의 전역 "p,div{{color:TEXT_PRIMARY}}" 규칙을 그대로 물려받아 버튼 자체를
+           흰 글자로 지정해도 안쪽 글자는 계속 어두운 색으로 보였다 — 자식까지 직접 지정. */
+        button[kind="primary"] p, button[kind="primary"] div, button[kind="primary"] span {{
+            color:#fff !important;
+            font-weight:800 !important;
+        }}
         div[data-testid="stMetric"] {{
             background: {CARD_BG};
             border: 1px solid {CARD_BORDER};

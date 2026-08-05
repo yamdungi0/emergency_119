@@ -111,26 +111,25 @@ with st.container(border=True):
     show.columns = ["단위", "모델", "MAE", "WMAPE(%)", "Poisson deviance"]
     st.dataframe(show, hide_index=True, use_container_width=True)
 
-st.markdown('<div class="panel" style="margin-top:.6rem;">', unsafe_allow_html=True)
-st.markdown("**AI 보조패널 감사로그**")
-try:
-    import sqlite3
-
-    conn = sqlite3.connect(dl.DATA_DIR / "audit.db")
-    audit = None
+with st.container(border=True):
+    st.markdown("**AI 보조패널 감사로그**")
     try:
-        import pandas as pd
+        import sqlite3
 
-        audit = pd.read_sql_query(
-            "SELECT id, created_at FROM case_audit ORDER BY created_at DESC LIMIT 20", conn
-        )
-    finally:
-        conn.close()
-    if audit is not None and not audit.empty:
-        st.dataframe(audit, hide_index=True, use_container_width=True)
-        st.caption("화면3 AI 보조패널에서 '확인 후 저장'을 누를 때마다 여기 기록됩니다(로컬 SQLite, 배포 환경에서는 재시작 시 초기화될 수 있음).")
-    else:
+        conn = sqlite3.connect(dl.DATA_DIR / "audit.db")
+        audit = None
+        try:
+            import pandas as pd
+
+            audit = pd.read_sql_query(
+                "SELECT id, created_at FROM case_audit ORDER BY created_at DESC LIMIT 20", conn
+            )
+        finally:
+            conn.close()
+        if audit is not None and not audit.empty:
+            st.dataframe(audit, hide_index=True, use_container_width=True)
+            st.caption("화면3 AI 보조패널에서 '확인 후 저장'을 누를 때마다 여기 기록됩니다(로컬 SQLite, 배포 환경에서는 재시작 시 초기화될 수 있음).")
+        else:
+            st.caption("아직 저장된 사건이 없습니다. 화면3에서 '확인 후 저장'을 눌러보세요.")
+    except Exception:
         st.caption("아직 저장된 사건이 없습니다. 화면3에서 '확인 후 저장'을 눌러보세요.")
-except Exception:
-    st.caption("아직 저장된 사건이 없습니다. 화면3에서 '확인 후 저장'을 눌러보세요.")
-st.markdown("</div>", unsafe_allow_html=True)
